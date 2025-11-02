@@ -1580,7 +1580,7 @@ export class GameManager extends EventEmitter {
       return undefined;
     }
 
-    return player?.silver;
+    return player?.score;
   }
 
   public getPlayerSpaceJunk(addr: EthAddress): number | undefined {
@@ -5288,6 +5288,40 @@ export class GameManager extends EventEmitter {
       fee += t * t * SPACE_JUNK_QUADRATIC_BASE_PRICE;
     }
     return fee;
+  }
+
+  public getBuyJunkFeeByAddr(address: EthAddress) {
+    const player = this.getPlayer(address);
+    if (!player) return 0n;
+
+    const playerSpaceJunkLimit = this.getPlayerSpaceJunkLimit(address);
+
+    if (playerSpaceJunkLimit === 0) {
+      return 0n;
+    }
+
+    const amount = playerSpaceJunkLimit
+      ? Math.round(playerSpaceJunkLimit / 1000)
+      : 0;
+    const fee = this.getBuyJunkFee(amount);
+    return fee;
+  }
+
+  public getFeeAnalysis() {
+    const players = this.getAllPlayers();
+    let sum = 0n;
+    for (let i = 0; i < players.length; i++) {
+      const player = players[i];
+      const fee = this.getBuyJunkFeeByAddr(player.address);
+      sum += fee;
+
+      const showFee = utils.formatEther(fee.toString());
+
+      console.log(player.address, showFee);
+    }
+
+    const showSum = utils.formatEther(sum.toString());
+    console.log("sum:", showSum);
   }
 
   public async buyJunk(

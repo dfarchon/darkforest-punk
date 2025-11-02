@@ -51,6 +51,7 @@ const KEY_TOGGLE_INCOMING_FIRING_DISPLAY = ">"; // '>' displays better than '.'
 // Other controls
 
 let SILVER_SEND_PERCENT = 99; // Sends this proportion of silver from the source planet
+let MATERIAL_SEND_PERCENT = 99; // Sends this proportion of materials from the source planet
 // Note - `let` was sometimes used by original author in this plugin to sidestep any weird execution env problems
 // ----------------------------------------
 
@@ -149,6 +150,7 @@ class Repeater {
       pcTrigger: DEFAULT_PERCENTAGE_TRIGGER,
       pcRemain: DEFAULT_PERCENTAGE_REMAIN,
       sendSilverStatus: INITIAL_SILVER_STATUS,
+      sendMaterials: false,
     };
     this.attacks = []; // attacks already set up
 
@@ -203,6 +205,12 @@ class Repeater {
     this.attacks[position].sendSilverStatus = toggleSilverStatus(
       this.attacks[position].sendSilverStatus,
     );
+    this.saveAttacks();
+  }
+
+  toggleMaterials(position) {
+    this.attacks[position].sendMaterials =
+      !this.attacks[position].sendMaterials;
     this.saveAttacks();
   }
 
@@ -273,6 +281,7 @@ const ExecuteAttack = ({
   pcTrigger,
   pcRemain,
   sendSilverStatus,
+  sendMaterials,
 }) => {
   let srcPlanet = df.getPlanetWithId(sourceId);
   if (!srcPlanet) return;
@@ -294,7 +303,24 @@ const ExecuteAttack = ({
       silver = Math.round(srcPlanet.silver * (SILVER_SEND_PERCENT / 100));
     }
 
-    df.move(sourceId, targetId, FORCES, silver);
+    // Prepare materials to send
+    let materials = [];
+    if (
+      sendMaterials &&
+      srcPlanet.materials &&
+      srcPlanet.materials.length > 0
+    ) {
+      materials = srcPlanet.materials
+        .map((mat) => ({
+          materialId: mat.materialId,
+          materialAmount: Math.round(
+            mat.materialAmount * (MATERIAL_SEND_PERCENT / 100),
+          ),
+        }))
+        .filter((mat) => mat.materialAmount > 0);
+    }
+
+    df.move(sourceId, targetId, FORCES, silver, undefined, false, materials);
   }
 };
 
@@ -331,7 +357,13 @@ function centerPlanet(id) {
   ui.centerLocationId(id);
 }
 
-function Attack({ attack, onToggleActive, onToggleSilver, onDelete }) {
+function Attack({
+  attack,
+  onToggleActive,
+  onToggleSilver,
+  onToggleMaterials,
+  onDelete,
+}) {
   const srcString = getPlanetString(attack.sourceId);
   const targetString = getPlanetString(attack.targetId);
   const finalSrc =
@@ -403,6 +435,9 @@ function Attack({ attack, onToggleActive, onToggleSilver, onDelete }) {
         <button onClick=${onToggleSilver}>
           ${`${sendSilverStatusesIcon[attack.sendSilverStatus]}`}
         </button>
+        <button onClick=${onToggleMaterials}>
+          ${attack.sendMaterials ? "📦" : "⛔️"}
+        </button>
       </span>
       <button onClick=${onDelete}>X</button>
     </div>
@@ -460,6 +495,9 @@ function AddAttack({
       "sendSilverStatus",
       toggleSilverStatus(getCurrentAttack("sendSilverStatus")),
     );
+
+  const toggleSendMaterials = () =>
+    setCurrentAttack("sendMaterials", !getCurrentAttack("sendMaterials"));
 
   useLayoutEffect(() => {
     let onClick = () => setCurrentPlanet("selected", ui.getSelectedPlanet());
@@ -616,6 +654,23 @@ function AddAttack({
           <span style=${Keyboard_Shortcut}>[${KEY_TOGGLE_SILVER}]</span>
         </button>
       </div>
+      <div
+        style=${{
+          marginBottom: 10,
+        }}
+      >
+        Send materials:
+        <button
+          style=${{
+            width: 150,
+            height: 23,
+            fontSize: "90%",
+          }}
+          onClick=${toggleSendMaterials}
+        >
+          ${getCurrentAttack("sendMaterials") ? "📦 Yes" : "⛔️ No"}
+        </button>
+      </div>
       <div>
         <button
           style=${{
@@ -739,6 +794,7 @@ function AttackList({ repeater }) {
         attack=${action}
         onToggleActive=${() => repeater.toggleActive(index)}
         onToggleSilver=${() => repeater.toggleSilver(index)}
+        onToggleMaterials=${() => repeater.toggleMaterials(index)}
         onDelete=${() => repeater.removeAttack(index)}
       />
     `;

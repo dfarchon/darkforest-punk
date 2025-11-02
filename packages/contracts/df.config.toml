@@ -3,7 +3,7 @@ a_sparsity = 16384
 b_radius = 100000
 
 [round]
-number = 4
+number = 1
 
 [entry_fee]
 value = 1000000000000
@@ -15,7 +15,7 @@ set_current_round = true # if true,should be deployed by nft contract owner
 
 [temp]
 b_skip_proof_check = false
-c_player_limit = 1800
+c_player_limit = 2000
 d_spawn_perlin_min = 1
 e_spawn_perlin_max = 31
 f_reveal_cd = 14400
@@ -108,9 +108,9 @@ g_max_total_level = 0x05050403         # [5, 5, 4, 3]
 h_silver_cost = 0x000000000064503c2814 # [100, 80, 60, 40, 20]
 
 [snark]
-a_planet_hash_key = 1876
-b_biome_base_key = 2451
-c_space_type_key = 2456
+a_planet_hash_key = 1729
+b_biome_base_key = 1731
+c_space_type_key = 1730
 d_perlin_length_scale = 8192
 e_perlin_mirror_x = 0
 f_perlin_mirror_y = 0
@@ -121,11 +121,11 @@ rate = 1
 [inner_circle]
 a_radius = 75000
 b_radiusx1000 = 75000000
-c_speed = 63
+c_speed = 87
 
 [guild_config]
-a_create_fee = 2000000000000000  # 0.002 ETH
-b_max_members = 5
+a_create_fee = 5000000000000000  # 0.005 ETH
+b_max_members = 6
 c_cooldown_ticks=14400  # 14400 seconds
 # c_cooldown_ticks = 60   # 60 seconds
 
@@ -175,9 +175,9 @@ c_ABANDON_RANGE_CHANGE_PERCENT = 150
 
 d_SPACE_JUNK_FREE_ALLOCATION = 1 # 1 means 1000 SPACE_JUNK
 e_SPACE_JUNK_LINEAR_MIN_PURCHASE = 2
-f_SPACE_JUNK_LINEAR_MAX_PURCHASE = 5
+f_SPACE_JUNK_LINEAR_MAX_PURCHASE = 8
 g_SPACE_JUNK_LINEAR_BASE_PRICE = 1000000000000000
-h_SPACE_JUNK_QUADRATIC_MIN_PURCHASE = 6
+h_SPACE_JUNK_QUADRATIC_MIN_PURCHASE = 9
 i_SPACE_JUNK_QUADRATIC_MAX_PURCHASE = 1000
 j_SPACE_JUNK_QUADRATIC_BASE_PRICE = 1000000000000000
 

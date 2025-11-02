@@ -8,7 +8,7 @@ export const BLOCKCHAIN_NAME = "Optimism";
 export const HOST_TEAM_NAME = "DF Archon";
 export const VERSION = "v0.1.1";
 
-export const GAS_ADJUST_DELTA = "0.0002"; //"3"; // '0.000000001'; //'1'; //'0.00000005';
+export const GAS_ADJUST_DELTA = "0.00005"; //"3"; // '0.000000001'; //'1'; //'0.00000005';
 
 export const FIXED_DIGIT_NUMBER = 9;
 
@@ -208,13 +208,13 @@ export const THEGRAPH_API_URL =
   "https://api.thegraph.com/subgraphs/name/darkforest-eth/dark-forest-v06-round-5";
 
 export const PLAYER_GUIDE =
-  "https://dfares.notion.site/Dark-Forest-MUD-v0-1-4-player-guide-226a4dc234338094b74ec0679039a4dd";
+  "https://dfares.notion.site/Dark-Forest-Punk-R1-guide-290a4dc23433801d8c34eb496f9d8ab7";
 
 export const HOW_TO_TRANSFER_ETH_FROM_L2_TO_REDSTONE =
-  "https://dfares.notion.site/How-to-Transfer-ETH-from-L2-to-Base-Mainnet-226a4dc234338145a9e4f42b6cbd077c";
+  "https://dfares.notion.site/How-to-Transfer-ETH-from-L2-to-Optimism-Mainnet-290a4dc2343381f5a6c9cb0645ade237";
 
 export const HOW_TO_ENABLE_POPUPS =
-  "https://dfares.notion.site/How-to-Enable-Popups-226a4dc23433819b9805cacae5a99189";
+  "https://dfares.notion.site/How-to-Enable-Popups-290a4dc23433818085a3e8d119869adb";
 
 export const WIN_CONDITION_AND_PRIZES =
-  "https://dfares.notion.site/1-1-Win-Conditions-Prizes-226a4dc2343381f8a9a6f9b5a5b63827";
+  "https://dfares.notion.site/1-1-Win-Conditions-Prizes-290a4dc2343381a08c5cf88be7403893";

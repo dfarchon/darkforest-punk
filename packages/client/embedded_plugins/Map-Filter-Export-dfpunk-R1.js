@@ -34,21 +34,23 @@ import { html, render, useState } from "https://esm.sh/htm/preact/standalone";
 
 let showPlanets = [];
 
-export const isPlanet = (planet) => planet.planetType === PlanetType.PLANET;
+export const isPlanet = (planet) => planet.planetType === PlanetType.PLANET + 1;
 export const isAsteroidField = (planet) =>
-  planet.planetType === PlanetType.SILVER_MINE;
-export const isFoundry = (planet) => planet.planetType === PlanetType.RUINS;
+  planet.planetType === PlanetType.SILVER_MINE + 1;
+export const isFoundry = (planet) => planet.planetType === PlanetType.RUINS + 1;
 export const isSpacetimeRip = (planet) =>
-  planet.planetType === PlanetType.TRADING_POST;
+  planet.planetType === PlanetType.TRADING_POST + 1;
 export const isQuasar = (planet) =>
-  planet.planetType === PlanetType.SILVER_BANK;
+  planet.planetType === PlanetType.SILVER_BANK + 1;
 
 export const inBlackSpace = (planet) =>
-  planet.spaceType === SpaceType.DEEP_SPACE;
+  planet.spaceType === SpaceType.DEEP_SPACE + 1;
 export const inGreenSpace = (planet) =>
-  planet.spaceType === SpaceType.DEAD_SPACE;
-export const inBlueSpace = (planet) => planet.spaceType === SpaceType.NEBULA;
-export const inDarkblueSpace = (planet) => planet.spaceType === SpaceType.SPACE;
+  planet.spaceType === SpaceType.DEAD_SPACE + 1;
+export const inBlueSpace = (planet) =>
+  planet.spaceType === SpaceType.NEBULA + 1;
+export const inDarkblueSpace = (planet) =>
+  planet.spaceType === SpaceType.SPACE + 1;
 export const destroyedFilter = (plt) => {
   return plt.location !== undefined && plt.destroyed === false;
 };

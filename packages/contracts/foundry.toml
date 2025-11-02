@@ -32,6 +32,9 @@ eth_rpc_url = "https://sepolia.base.org"
 [profile.base]
 eth_rpc_url = "https://mainnet.base.org"
 
+[profile.optimism]
+eth_rpc_url = "https://mainnet.optimism.io"
+
 [fmt]
 line_length = 120
 tab_width = 2

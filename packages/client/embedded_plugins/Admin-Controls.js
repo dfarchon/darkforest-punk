@@ -191,6 +191,20 @@ async function revealPlanet(coords, level, type) {
   await df.hardRefreshPlanet(locationIdFromDecStr(location));
 }
 
+async function withdraw() {
+  const account = df.getAccount();
+  const player = df.getPlayer(account);
+  const txIntent = {
+    delegator: player.address,
+    methodName: "df__withdraw",
+    contract: df.getContract(),
+    args: Promise.resolve([]),
+  };
+
+  const tx = await df.submitTransaction(txIntent);
+  return tx;
+}
+
 function PlanetLink({ planetId }) {
   if (planetId) {
     return html`<a
@@ -499,6 +513,10 @@ function App() {
 
       <div style=${rowStyle}>
         <${PlanetCreator} />
+      </div>
+
+      <div style=${rowStyle}>
+        <df-button onClick=${() => withdraw()}> Withdraw ETH </df-button>
       </div>
     </div>
   `;

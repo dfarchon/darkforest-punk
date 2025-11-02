@@ -21,6 +21,7 @@ import {
 import {
   baseSepolia as baseSepoliaConfig,
   base as baseConfig,
+  optimism as optimismConfig,
 } from "viem/chains";
 
 export const baseSepolia = {
@@ -63,6 +64,27 @@ export const base = {
   },
 } as MUDChain;
 
+export const optimism = {
+  ...optimismConfig,
+  iconUrls: [""],
+  indexerUrl: "",
+  rpcUrls: {
+    ...optimismConfig.rpcUrls,
+    default: {
+      http: optimismConfig.rpcUrls.default.http,
+      webSocket: [
+        optimismConfig.rpcUrls.default.http[0].replace("https", "wss"),
+      ], // Convert HTTP to WebSocket URL
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Optimism Explorer",
+      url: "https://mainnet.optimism.io",
+    },
+  },
+} as MUDChain;
+
 /*
  * See https://mud.dev/guides/hello-world/add-chain-client
  * for instructions on how to add networks.
@@ -73,4 +95,5 @@ export const supportedChains: MUDChain[] = [
   garnet,
   baseSepolia,
   base,
+  optimism,
 ];
