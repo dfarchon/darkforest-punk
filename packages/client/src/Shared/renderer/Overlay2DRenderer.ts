@@ -18,10 +18,11 @@ import type {
   PlanetRenderInfo,
   WorldCoords,
 } from "@df/types";
-import { LogoType, TextAlign } from "@df/types";
+import { ArtifactRarity, LogoType, TextAlign } from "@df/types";
 
 import { avatarFromType } from "./Avatars";
 import { engineConsts } from "./EngineConsts";
+import { EngineUtils } from "./EngineUtils";
 import { hatFromType } from "./Hats";
 import { logoFromType } from "./Logos";
 import { memeFromType } from "./Memes";
@@ -192,6 +193,233 @@ export class Overlay2DRenderer {
 
       ctx.restore();
     }
+  }
+
+  drawHTMLImageWithClipping(
+    image: HTMLImageElement,
+    center: WorldCoords,
+    width: number,
+    height: number,
+    radius: number,
+    hoveringPlanet: boolean,
+    spriteX: number, // x offset in sprite sheet
+    spriteY: number, // y offset in sprite sheet
+    spriteWidth: number, // width of individual sprite
+    spriteHeight: number, // height of individual sprite
+    rotation: number = 0, // rotation in radians
+  ) {
+    const { ctx } = this;
+    const viewport = this.renderer.getViewport();
+
+    const trueCenter = viewport.worldToCanvasCoords(center);
+    const trueWidth = viewport.worldToCanvasDist(width);
+    const trueHeight = viewport.worldToCanvasDist(height);
+
+    ctx.save();
+    ctx.translate(trueCenter.x, trueCenter.y);
+    ctx.rotate(rotation);
+    ctx.scale(trueWidth / spriteWidth, trueHeight / spriteHeight);
+
+    // Draw the specific sprite from the sprite sheet
+    ctx.drawImage(
+      image,
+      spriteX,
+      spriteY,
+      spriteWidth,
+      spriteHeight, // source rectangle
+      -spriteWidth / 2,
+      -spriteHeight / 2,
+      spriteWidth,
+      spriteHeight, // destination rectangle
+    );
+
+    ctx.restore();
+  }
+
+  drawHTMLImageWithRarityEffects(
+    image: HTMLImageElement,
+    center: WorldCoords,
+    width: number,
+    height: number,
+    _radius: number,
+    _hoveringPlanet: boolean,
+    spriteX: number, // x offset in sprite sheet
+    spriteY: number, // y offset in sprite sheet
+    spriteWidth: number, // width of individual sprite
+    spriteHeight: number, // height of individual sprite
+    rotation: number = 0, // rotation in radians
+    rarity: number = 1, // artifact rarity (1 = Common, 2 = Rare, etc.)
+    alpha: number = 255, // alpha value for transparency
+  ) {
+    const { ctx } = this;
+    const viewport = this.renderer.getViewport();
+
+    const trueCenter = viewport.worldToCanvasCoords(center);
+    const trueWidth = viewport.worldToCanvasDist(width);
+    const trueHeight = viewport.worldToCanvasDist(height);
+
+    // Calculate shine animation (exact same as SpriteRenderer)
+    const totalDur = 3;
+    const totalFrames = totalDur * 60;
+    // Use EngineUtils.getNow() for consistent timing with SpriteRenderer
+    const nowFrame = Math.floor((EngineUtils.getNow() % totalDur) * 60);
+    const shineVal = nowFrame / totalFrames;
+
+    // Determine effects based on rarity
+    const hasShine = rarity >= ArtifactRarity.Rare;
+    const isLegendary = rarity === ArtifactRarity.Legendary;
+    const isMythic = rarity === ArtifactRarity.Mythic;
+    // Removed outline effect - no borders for spaceships
+
+    ctx.save();
+
+    // Main sprite rendering
+    ctx.translate(trueCenter.x, trueCenter.y);
+    ctx.rotate(rotation);
+    ctx.scale(trueWidth / spriteWidth, trueHeight / spriteHeight);
+    ctx.globalAlpha = alpha / 255;
+
+    // Apply color inversion for legendary artifacts
+    if (isLegendary) {
+      ctx.filter = "invert(1)";
+    }
+
+    // Apply mythic effects (simplified version of the shader effect)
+    if (isMythic) {
+      // Create a canvas for mythic effects
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      if (tempCtx) {
+        tempCanvas.width = spriteWidth;
+        tempCanvas.height = spriteHeight;
+
+        // Draw the sprite to temp canvas
+        tempCtx.drawImage(
+          image,
+          spriteX,
+          spriteY,
+          spriteWidth,
+          spriteHeight,
+          0,
+          0,
+          spriteWidth,
+          spriteHeight,
+        );
+
+        // Apply mythic color effects
+        const imageData = tempCtx.getImageData(0, 0, spriteWidth, spriteHeight);
+        const data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+
+          // Check if pixel is black or white (preserve them)
+          const isBlack = r < 13 && g < 13 && b < 13;
+          const isWhite = r > 242 && g > 242 && b > 242;
+
+          if (!isBlack && !isWhite) {
+            // Apply mythic color transformation
+            data[i] = Math.min(255, Math.max(0, (r - 89) * 3 + 89)); // Red
+            data[i + 1] = Math.min(255, Math.max(0, (g - 89) * 3 + 89)); // Green
+            data[i + 2] = Math.min(255, Math.max(0, (b - 89) * 3 + 89)); // Blue
+          }
+        }
+
+        tempCtx.putImageData(imageData, 0, 0);
+
+        // Draw the processed image
+        ctx.drawImage(
+          tempCanvas,
+          -spriteWidth / 2,
+          -spriteHeight / 2,
+          spriteWidth,
+          spriteHeight,
+        );
+      }
+    } else {
+      // Draw normal sprite
+      ctx.drawImage(
+        image,
+        spriteX,
+        spriteY,
+        spriteWidth,
+        spriteHeight, // source rectangle
+        -spriteWidth / 2,
+        -spriteHeight / 2,
+        spriteWidth,
+        spriteHeight, // destination rectangle
+      );
+    }
+
+    // Apply shine effect for rare+ artifacts
+    if (hasShine) {
+      ctx.restore();
+      ctx.save();
+
+      // Calculate shine position (same formula as shader)
+      const shine = -0.5 + 12 * shineVal;
+
+      // Create shine effect using a white line
+      ctx.translate(trueCenter.x, trueCenter.y);
+      ctx.rotate(rotation);
+      ctx.scale(trueWidth / spriteWidth, trueHeight / spriteHeight);
+
+      ctx.strokeStyle = "white";
+      // Match shader thickness: 0.05 of sprite size (same as shader's < 0.05 condition)
+      ctx.lineWidth = Math.max(1, spriteWidth * 0.05);
+      ctx.globalAlpha = 0.8;
+
+      // Draw diagonal shine line (exact same as shader: (x - shine) - 0.25 * (y - 0.5) = 0)
+      ctx.beginPath();
+      const startX = -spriteWidth / 2;
+      const endX = spriteWidth / 2;
+      const startY = -spriteHeight / 2;
+      const endY = spriteHeight / 2;
+
+      // Convert to normalized coordinates (0-1) like the shader uses
+      const normalizedShine = shine;
+
+      // Find intersection points of diagonal line with sprite boundaries
+      // Line equation: (x - shine) - 0.25 * (y - 0.5) = 0
+      // Rearranged: y = 4 * (x - shine) + 0.5
+
+      const intersections = [];
+
+      // Check intersection with left edge (x = 0)
+      const yAtLeft = 4 * (0 - normalizedShine) + 0.5;
+      if (yAtLeft >= 0 && yAtLeft <= 1) {
+        intersections.push({ x: startX, y: startY + yAtLeft * spriteHeight });
+      }
+
+      // Check intersection with right edge (x = 1)
+      const yAtRight = 4 * (1 - normalizedShine) + 0.5;
+      if (yAtRight >= 0 && yAtRight <= 1) {
+        intersections.push({ x: endX, y: startY + yAtRight * spriteHeight });
+      }
+
+      // Check intersection with top edge (y = 0)
+      const xAtTop = normalizedShine + 0.25 * (0 - 0.5);
+      if (xAtTop >= 0 && xAtTop <= 1) {
+        intersections.push({ x: startX + xAtTop * spriteWidth, y: startY });
+      }
+
+      // Check intersection with bottom edge (y = 1)
+      const xAtBottom = normalizedShine + 0.25 * (1 - 0.5);
+      if (xAtBottom >= 0 && xAtBottom <= 1) {
+        intersections.push({ x: startX + xAtBottom * spriteWidth, y: endY });
+      }
+
+      // Draw the diagonal line through the intersection points
+      if (intersections.length >= 2) {
+        ctx.moveTo(intersections[0].x, intersections[0].y);
+        ctx.lineTo(intersections[1].x, intersections[1].y);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
   }
 
   drawHTMLImage(

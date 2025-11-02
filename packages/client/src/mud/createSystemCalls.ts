@@ -702,6 +702,38 @@ export function createSystemCalls(
     }
   };
 
+  // REVERT MOVE call
+  const revertMove = async (
+    moveId: bigint,
+    toPlanetHash: bigint,
+    moveIndex: number,
+  ): Promise<void> => {
+    try {
+      const tx = await worldContract.write.df__revertMove([
+        moveId,
+        toPlanetHash,
+        moveIndex,
+      ]);
+      const receipt = await waitForTransaction(tx as `0x${string}`);
+      console.log("Move reverted successfully:", receipt);
+      getComponentValue(Move, singletonEntity);
+    } catch (error) {
+      console.error("Revert move transaction failed:", error);
+      throw error;
+    }
+  };
+
+  // CHECK IF MOVE IS REVERTED call
+  const isMoveReverted = async (moveId: bigint): Promise<boolean> => {
+    try {
+      const result = await worldContract.read.df__isMoveReverted([moveId]);
+      return result as boolean;
+    } catch (error) {
+      console.error("Failed to check if move is reverted:", error);
+      return false; // Default to false if we can't check
+    }
+  };
+
   // do not forget init function calls to be accessable in MUD systems calls
   return {
     registerPlayer,
@@ -712,6 +744,8 @@ export function createSystemCalls(
     initializePlayer,
     createPlanet,
     move,
+    revertMove,
+    isMoveReverted,
     unPause,
     pause,
     tick,

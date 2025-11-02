@@ -38,6 +38,7 @@ import type {
   UnconfirmedProspectPlanet,
   UnconfirmedRefreshPlanet,
   UnconfirmedReveal,
+  UnconfirmedRevertMove,
   UnconfirmedSendApplication,
   UnconfirmedSendGPTTokens,
   UnconfirmedSetGrant,
@@ -655,4 +656,16 @@ export function isUnconfirmedSpendGPTTokensTx(
   tx: Transaction,
 ): tx is Transaction<UnconfirmedSpendGPTTokens> {
   return isUnconfirmedSpendGPTTokens(tx.intent);
+}
+
+export function isUnconfirmedRevertMove(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedRevertMove {
+  return txIntent.methodName === "df__revertMove";
+}
+
+export function isUnconfirmedRevertMoveTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedRevertMove> {
+  return isUnconfirmedRevertMove(tx.intent);
 }

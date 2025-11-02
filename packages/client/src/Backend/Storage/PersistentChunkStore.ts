@@ -529,7 +529,11 @@ class PersistentChunkStore implements ChunkStore {
     const ser: PersistedTransaction = { hash: tx.hash, intent: tx.intent };
     await this.db.put(
       ObjectStore.UNCONFIRMED_ETH_TXS,
-      JSON.parse(JSON.stringify(ser)),
+      JSON.parse(
+        JSON.stringify(ser, (key, value) =>
+          typeof value === "bigint" ? value.toString() : value,
+        ),
+      ),
       tx.hash,
     );
   }

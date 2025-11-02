@@ -139,6 +139,7 @@ import type {
   UnconfirmedPlanetTransfer,
   UnconfirmedProspectPlanet,
   UnconfirmedRefreshPlanet,
+  UnconfirmedRevertMove,
   UnconfirmedReveal,
   UnconfirmedSendGPTTokens,
   UnconfirmedSetGrant,
@@ -5069,6 +5070,51 @@ export class GameManager extends EventEmitter {
     } catch (e) {
       this.getNotificationsManager().txInitError(
         "df__withdrawMaterial",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async revertMove(
+    moveId: string,
+    toPlanetHash: LocationId,
+    moveIndex: number,
+  ): Promise<Transaction<UnconfirmedRevertMove>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const delegator = this.account;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const txIntent: UnconfirmedRevertMove = {
+        delegator: delegator,
+        methodName: "df__revertMove",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          moveId, // Keep as string for JSON serialization
+          locationIdToHexStr(toPlanetHash),
+          moveIndex,
+        ]),
+        moveId: moveId,
+        toPlanetHash,
+        moveIndex,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__revertMove",
         (e as Error).message,
       );
       throw e;

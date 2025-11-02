@@ -40,6 +40,7 @@ export type ContractMethodName =
   | "df__clearJunk"
   | "df__buyJunk"
   | "df__setPlanetEmoji"
+  | "df__revertMove"
   | "useKey"
   | "adminUseKey"
   | "addKeys"
@@ -573,4 +574,14 @@ export type UnconfirmedSendGPTTokens = TxIntent & {
   methodName: "df__sendGPTTokens";
   player: EthAddress;
   amount: number;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedRevertMove = TxIntent & {
+  methodName: "df__revertMove";
+  moveId: string;
+  toPlanetHash: LocationId;
+  moveIndex: number;
 };

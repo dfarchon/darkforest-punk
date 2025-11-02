@@ -54,6 +54,10 @@ export function isSpaceShip(type: ArtifactType | undefined): boolean {
   );
 }
 
+export function isArtifactSpaceShip(type: ArtifactType | undefined): boolean {
+  return type === ArtifactType.Spaceship;
+}
+
 export function hasStatBoost(type: ArtifactType | undefined): boolean {
   return (
     !isSpaceShip(type) &&
