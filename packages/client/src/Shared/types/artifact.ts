@@ -46,6 +46,30 @@ export const ArtifactType = {
 } as const;
 
 /**
+ * Spaceship types for crafted spaceships
+ */
+export type SpaceshipType = Abstract<number, "SpaceshipType">;
+
+export const SpaceshipType = {
+  Unknown: 0 as SpaceshipType,
+  Scout: 1 as SpaceshipType,
+  Fighter: 2 as SpaceshipType,
+  Destroyer: 3 as SpaceshipType,
+  Carrier: 4 as SpaceshipType,
+} as const;
+
+/**
+ * Mapping from SpaceshipType to pretty-printed names.
+ */
+export const SpaceshipTypeNames = {
+  [SpaceshipType.Unknown]: "Unknown",
+  [SpaceshipType.Scout]: "Scout",
+  [SpaceshipType.Fighter]: "Fighter",
+  [SpaceshipType.Destroyer]: "Destroyer",
+  [SpaceshipType.Carrier]: "Carrier",
+} as const;
+
+/**
  * Mapping from ArtifactType to pretty-printed names.
  */
 export const ArtifactTypeNames = {
@@ -211,6 +235,16 @@ export type Artifact = {
   reqSilver?: bigint;
   chargeUpgrade?: Upgrade;
   activateUpgrade?: Upgrade;
+
+  // Spaceship-specific properties
+  spaceshipType?: SpaceshipType;
+  attackBonus?: number;
+  defenseBonus?: number;
+  speedBonus?: number;
+  rangeBonus?: number;
+  crafter?: EthAddress;
+  craftedAt?: number;
+  nftTokenId?: number;
 };
 
 // TODO: get this out of here

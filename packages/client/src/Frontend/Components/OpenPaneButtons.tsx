@@ -19,6 +19,7 @@ import {
   UpgradeDetailsPane,
   UpgradeDetailsPaneHelpContent,
 } from "../Panes/UpgradeDetailsPane";
+import { FoundryUpgradePane } from "../Panes/FoundryUpgradePane";
 import {
   TOGGLE_BLUE_PANE,
   TOGGLE_BROADCAST_PANE,
@@ -197,6 +198,24 @@ export function OpenMaterialsPaneButton({
         <PlanetMaterialsPane modal={modal} initialPlanetId={planetId} />
       )}
       helpContent={PlanetMaterialsHelpContent()}
+    />
+  );
+}
+
+export function OpenFoundryUpgradePaneButton({
+  modal,
+  planetId,
+}: {
+  modal: ModalHandle;
+  planetId: LocationId | undefined;
+}) {
+  return (
+    <OpenPaneButton
+      modal={modal}
+      title="Upgrade Foundry"
+      element={() => (
+        <FoundryUpgradePane modal={modal} initialPlanetId={planetId} />
+      )}
     />
   );
 }

@@ -5,7 +5,6 @@ import { artifactNameFromArtifact, TooltipName } from "@df/types";
 import {
   getMaterialColor,
   getMaterialIcon,
-  getMaterialName,
 } from "@frontend/Panes/PlanetMaterialsPane";
 import React, { useCallback } from "react";
 import styled from "styled-components";

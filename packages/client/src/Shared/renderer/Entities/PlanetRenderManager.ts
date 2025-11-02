@@ -1,11 +1,5 @@
 import { EMPTY_ADDRESS } from "@df/constants";
-import {
-  formatNumber,
-  getRange,
-  hasOwner,
-  isLocatable,
-  isSpaceShip,
-} from "@df/gamelogic";
+import { formatNumber, getRange, hasOwner, isLocatable } from "@df/gamelogic";
 import {
   artifactImageTypeToNum,
   avatarTypeToNum,
@@ -32,13 +26,16 @@ import type {
 } from "@df/types";
 import {
   ArtifactType,
+  Biome,
   HatType,
   LogoType,
   PlanetType,
   RendererType,
+  SpaceshipType,
   TextAlign,
   TextAnchor,
 } from "@df/types";
+import type { ClientComponents } from "@mud/createClientComponents";
 
 import { avatars } from "../Avatars";
 import { engineConsts } from "../EngineConsts";
@@ -60,11 +57,47 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
 
   rendererType = RendererType.PlanetManager;
 
+  // Custom spaceship sprite management
+  private spaceshipImages: Map<SpaceshipType, HTMLImageElement> = new Map();
+  private spaceshipSpritesLoaded: boolean = false;
+
+  // Custom spaceship sprite URLs
+  private static readonly SPACESHIP_SPRITES = {
+    [SpaceshipType.Scout]: "/sprites/Scouts.png",
+    [SpaceshipType.Fighter]: "/sprites/Fighters.png",
+    [SpaceshipType.Destroyer]: "/sprites/Destroyers.png",
+    [SpaceshipType.Carrier]: "/sprites/Cruisers.png", // Using Cruisers.png for Carrier
+  } as const;
+
   HTMLImages: Record<number, HTMLImageElement> = {};
+  private static components: ClientComponents | null = null;
+
   constructor(gl: GameGLManager) {
     this.renderer = gl.renderer;
     this.loadHTMLImages();
+    this.loadSpaceshipSprites();
     // this.loadNewHats();
+  }
+
+  static setComponents(components: ClientComponents): void {
+    PlanetRenderManager.components = components;
+  }
+
+  static refreshComponents(components: ClientComponents): void {
+    PlanetRenderManager.components = components;
+  }
+
+  // Get components from renderer context instead of static components
+  private getComponents(): ClientComponents | null {
+    // Try to get components from renderer context
+    const rendererWithComponents = this.renderer as Renderer & {
+      components?: ClientComponents;
+    };
+    if (rendererWithComponents?.components) {
+      return rendererWithComponents.components;
+    }
+    // Fallback to static components
+    return PlanetRenderManager.components;
   }
 
   loadHTMLImages(): void {
@@ -117,6 +150,29 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       };
     }
   }
+
+  loadSpaceshipSprites(): void {
+    for (const [spaceshipType, spriteUrl] of Object.entries(
+      PlanetRenderManager.SPACESHIP_SPRITES,
+    )) {
+      const img = new Image();
+      img.src = spriteUrl;
+      img.onload = () => {
+        this.spaceshipImages.set(Number(spaceshipType) as SpaceshipType, img);
+        // Check if all sprites are loaded
+        if (
+          this.spaceshipImages.size ===
+          Object.keys(PlanetRenderManager.SPACESHIP_SPRITES).length
+        ) {
+          this.spaceshipSpritesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load spaceship sprite: ${spriteUrl}`);
+      };
+    }
+  }
+
   // loadNewHats(): void {
   //   const keys = Object.keys(hats);
   //   // for (let i = 0; i < keys.length; ++i) {
@@ -381,6 +437,14 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
             radiusW,
             false,
           );
+      } else if (artifacts[i].artifactType === ArtifactType.Spaceship) {
+        // Handle custom spaceship sprites using HTML images
+        this.queueCustomSpaceshipSprite(
+          artifacts[i],
+          { x, y },
+          artifactSize,
+          alpha,
+        );
       } else if (artifacts[i].artifactType !== ArtifactType.Avatar) {
         this.renderer.spriteRenderer.queueArtifactWorld(
           artifacts[i],
@@ -394,6 +458,127 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
         );
       }
     }
+  }
+
+  public queueCustomSpaceshipSprite(
+    artifact: Artifact,
+    centerW: WorldCoords,
+    radiusW: number,
+    alpha: number,
+    fromCoords?: WorldCoords,
+    toCoords?: WorldCoords,
+  ) {
+    if (!this.spaceshipSpritesLoaded) {
+      // Fallback to default sprite renderer
+      this.renderer.spriteRenderer.queueArtifactWorld(
+        artifact,
+        centerW,
+        radiusW,
+        alpha,
+        undefined,
+        undefined,
+        undefined,
+        this.renderer.getViewport(),
+      );
+      return;
+    }
+
+    // Get spaceship type from CraftedSpaceship MUD table
+    let spaceshipType: SpaceshipType | undefined;
+
+    // First, try to use the spaceshipType from the artifact object (set by ArtifactUtils)
+    if (artifact.spaceshipType !== undefined) {
+      spaceshipType = artifact.spaceshipType as SpaceshipType;
+    } else {
+      // Fallback: lookup from MUD table
+      const components = this.getComponents();
+      if (components) {
+        // Use the same approach as useCraftedSpaceship - direct map access
+        // This works better than getComponentValue with encodeEntity for this use case
+        const artifactId = Number(artifact.id);
+        const spaceshipTypeMap =
+          components.CraftedSpaceship?.values?.spaceshipType;
+
+        if (spaceshipTypeMap) {
+          // Find the correct key by iterating through all keys (same method as useCraftedSpaceship)
+          for (const [key, value] of spaceshipTypeMap.entries()) {
+            const keyString = key.toString();
+            if (keyString.includes(artifactId.toString())) {
+              spaceshipType = value as SpaceshipType;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: If no CraftedSpaceship data exists, use default spaceship type
+    if (!spaceshipType) {
+      spaceshipType = SpaceshipType.Scout; // Default to Scout
+    }
+    const spaceshipImage = this.spaceshipImages.get(spaceshipType);
+    if (!spaceshipImage) {
+      // Fallback to default sprite renderer
+      this.renderer.spriteRenderer.queueArtifactWorld(
+        artifact,
+        centerW,
+        radiusW,
+        alpha,
+        undefined,
+        undefined,
+        undefined,
+        this.renderer.getViewport(),
+      );
+      return;
+    }
+
+    // Calculate biome index for sprite selection (0-9)
+    const biomeIndex = this.getBiomeIndex(artifact.planetBiome);
+
+    // Calculate rotation based on movement direction
+    let rotation = 0;
+    if (fromCoords && toCoords) {
+      const dx = toCoords.x - fromCoords.x;
+      const dy = toCoords.y - fromCoords.y;
+      // Calculate the angle from the movement direction
+      // The spaceship sprite's default orientation points to the right (0 radians)
+      // Note: Canvas Y-axis is inverted (positive Y goes down), so we need to flip dy
+      rotation = Math.atan2(-dy, dx);
+    }
+
+    // Use HTML image renderer with biome-specific sprite clipping, rotation, and rarity effects
+    this.renderer.overlay2dRenderer.drawHTMLImageWithRarityEffects(
+      spaceshipImage,
+      centerW,
+      radiusW,
+      radiusW,
+      radiusW,
+      false,
+      biomeIndex * 64, // x offset for biome sprite (64px per sprite)
+      0, // y offset (always 0 since it's a horizontal strip)
+      64, // sprite width
+      64, // sprite height
+      rotation, // rotation in radians
+      artifact.rarity, // artifact rarity for effects
+      alpha, // alpha value for transparency
+    );
+  }
+
+  private getBiomeIndex(biome: Biome): number {
+    // Map biome to sprite index (0-9)
+    const biomeMap = {
+      [Biome.OCEAN]: 0,
+      [Biome.FOREST]: 1,
+      [Biome.GRASSLAND]: 2,
+      [Biome.TUNDRA]: 3,
+      [Biome.SWAMP]: 4,
+      [Biome.DESERT]: 5,
+      [Biome.ICE]: 6,
+      [Biome.WASTELAND]: 7,
+      [Biome.LAVA]: 8,
+      [Biome.CORRUPTED]: 9,
+    };
+    return biomeMap[biome] ?? 0; // Default to Ocean if biome not found
   }
 
   private drawPlanetMessages(
@@ -596,8 +781,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     center: WorldCoords,
     radius: number,
   ) {
-    // @ts-expect-error - Remove circleRenderer if not needed later one
-    const { blackDomainRenderer: bR, circleRenderer: cR } = this.renderer;
+    const { blackDomainRenderer: bR } = this.renderer;
 
     bR.queueBlackDomain(planet, center, radius);
 
@@ -869,9 +1053,13 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
    * Renders rings around planet that show how far sending the given percentage of this planet's
    * energy would be able to travel.
    */
-  drawRangeAtPercent(planet: LocatablePlanet, pct: number) {
+  drawRangeAtPercent(
+    planet: LocatablePlanet,
+    pct: number,
+    spaceshipRangeBoost = 1,
+  ) {
     const { circleRenderer: cR, textRenderer: tR } = this.renderer;
-    const range = getRange(planet, pct);
+    const range = getRange(planet, pct, spaceshipRangeBoost);
     const {
       range: { dash },
     } = engineConsts.colors;
@@ -899,22 +1087,18 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       range: { energy },
     } = engineConsts.colors;
     const { x, y } = planet.location.coords;
-    const sendingArtifact = this.renderer.context.getArtifactSending(
+
+    // Get spaceship range boost from UI manager
+    const spaceshipRangeBoost = this.renderer.context.getSpaceshipRangeBoost(
       planet.locationId,
     );
-    const sendingSpaceShip = isSpaceShip(sendingArtifact?.artifactType);
-
-    if (sendingSpaceShip) {
-      return;
-    }
-
     const abandonRangeBoost =
       this.renderer.context.getAbandonRangeChangePercent() / 100;
 
     if (!context.isAbandoning()) {
-      this.drawRangeAtPercent(planet, 100);
-      this.drawRangeAtPercent(planet, 50);
-      this.drawRangeAtPercent(planet, 25);
+      this.drawRangeAtPercent(planet, 100, spaceshipRangeBoost);
+      this.drawRangeAtPercent(planet, 50, spaceshipRangeBoost);
+      this.drawRangeAtPercent(planet, 25, spaceshipRangeBoost);
     }
 
     if (planet.owner === EMPTY_ADDRESS) {
@@ -927,7 +1111,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     const range = getRange(
       planet,
       scaledForces,
-      context.isAbandoning() ? abandonRangeBoost : 1,
+      context.isAbandoning() ? abandonRangeBoost : spaceshipRangeBoost,
     );
 
     if (range > 1) {

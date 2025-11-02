@@ -50,6 +50,7 @@ export default defineWorld({
     PlanetFlagType: ["EXPLORED", "OFFENSIVE_ARTIFACT", "DEFENSIVE_ARTIFACT", "PRODUCTIVE_ARTIFACT", "DESTROYED"],
     GuildStatus: ["UNEXIST", "ACTIVE", "DISBANDED"],
     GuildRole: ["NONE", "MEMBER", "OFFICER", "LEADER"],
+    SpaceshipType: ["UNKNOWN", "SCOUT", "FIGHTER", "DESTROYER", "CARRIER"],
     // ArtifactType: [
     //   "UNKNOWN",
     //   "WORMHOLE",
@@ -88,6 +89,12 @@ export default defineWorld({
     },
     DfDelegationControlSystem: {
       name: "DfDelegationCtrl",
+    },
+    FoundryCraftingSystem: {
+      openAccess: false,
+    },
+    FoundryUpgradeSystem: {
+      openAccess: false,
     },
   },
   excludeSystems: [
@@ -509,6 +516,52 @@ export default defineWorld({
       },
       key: ["systemId"],
     },
+    CraftedSpaceship: {
+      schema: {
+        artifactId: "uint32",
+        spaceshipType: "uint8",
+        biome: "Biome",
+        rarity: "ArtifactRarity",
+        craftedAt: "uint64",
+        nftTokenId: "uint256",
+        crafter: "address",
+      },
+      key: ["artifactId"],
+    },
+    SpaceshipBonus: {
+      schema: {
+        artifactId: "uint32",
+        attackBonus: "uint16",
+        defenseBonus: "uint16",
+        speedBonus: "uint16",
+        rangeBonus: "uint16",
+      },
+      key: ["artifactId"],
+    },
+
+    MaterialUpgradeConfig: {
+      schema: {
+        upgradeType: "uint8",
+        materialType: "MaterialType",
+        costMultiplier: "uint16",
+      },
+      key: ["upgradeType"],
+    },
+    FoundryCraftingCount: {
+      schema: {
+        foundryHash: "bytes32",
+        count: "uint8",
+        lastCraftTime: "uint64",
+      },
+      key: ["foundryHash"],
+    },
+    FoundryUpgrade: {
+      schema: {
+        foundryHash: "bytes32",
+        branchLevel: "uint8", // 0 = base, 1 = level 1, 2 = level 2
+      },
+      key: ["foundryHash"],
+    },
     // // artifact module
     // Effect: {
     //   schema: {
@@ -708,6 +761,8 @@ export default defineWorld({
         upgradePlanetCount: "uint256",
         withdrawSilverCount: "uint256",
         withdrawMaterialCount: "uint256",
+        craftSpaceshipCount: "uint256",
+        upgradeFoundryCount: "uint256",
       },
       key: [],
     },
@@ -733,6 +788,8 @@ export default defineWorld({
         upgradePlanetCount: "uint256",
         withdrawSilverCount: "uint256",
         withdrawMaterialCount: "uint256",
+        craftSpaceshipCount: "uint256",
+        upgradeFoundryCount: "uint256",
       },
       key: ["player"],
     },

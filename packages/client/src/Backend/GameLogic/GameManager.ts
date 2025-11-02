@@ -35,6 +35,8 @@ import {
   isUnconfirmedBuyPlanetTx,
   isUnconfirmedBuySpaceshipTx,
   isUnconfirmedCapturePlanetTx,
+  isUnconfirmedCraftSpaceshipTx,
+  isUnconfirmedUpgradeFoundryTx,
   isUnconfirmedChangeArtifactImageTypeTx,
   isUnconfirmedChargeArtifactTx,
   isUnconfirmedClaimTx,
@@ -73,7 +75,6 @@ import type {
   AIZone,
   Artifact,
   ArtifactId,
-  Biome,
   BurnedCoords,
   BurnedLocation,
   CaptureZone,
@@ -87,7 +88,6 @@ import type {
   Link,
   LocatablePlanet,
   LocationId,
-  MaterialAmount,
   MaterialAmount,
   MaterialTransfer,
   MaterialType,
@@ -119,6 +119,8 @@ import type {
   UnconfirmedCapturePlanet,
   UnconfirmedChangeArtifactImageType,
   UnconfirmedChargeArtifact,
+  UnconfirmedCraftSpaceship,
+  UnconfirmedUpgradeFoundry,
   UnconfirmedClaim,
   UnconfirmedClearJunk,
   UnconfirmedBuyJunk,
@@ -168,6 +170,7 @@ import {
   PlanetType,
   Setting,
   SpaceType,
+  Biome,
 } from "@df/types";
 import type { NumberType } from "@latticexyz/recs";
 import { getComponentValue } from "@latticexyz/recs";
@@ -5076,6 +5079,269 @@ export class GameManager extends EventEmitter {
     }
   }
 
+  public async craftSpaceship(
+    foundryHash: LocationId,
+    spaceshipType: number,
+    materials: MaterialType[],
+    amounts: number[],
+    biome: Biome,
+  ): Promise<Transaction<UnconfirmedCraftSpaceship>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const foundry = this.entityStore.getPlanetWithId(foundryHash);
+      if (!foundry) {
+        throw new Error("tried to craft spaceship from an unknown foundry");
+      }
+      if (foundry.planetType !== PlanetType.RUINS) {
+        throw new Error("can only craft spaceships at foundries");
+      }
+      if (!this.checkDelegateCondition(foundry.owner, this.getAccount())) {
+        throw new Error("can only craft spaceships at foundries you own");
+      }
+      if (foundry.planetLevel < 4) {
+        throw new Error(
+          "foundry must be level 4 or higher to craft spaceships",
+        );
+      }
+
+      // Check if materials are sufficient
+      for (let i = 0; i < materials.length; i++) {
+        const material = foundry.materials?.find(
+          (m) => m?.materialId === materials[i],
+        );
+
+        if (!material || Number(material.materialAmount) < Number(amounts[i])) {
+          throw new Error(
+            `not enough ${materials[i]} material to craft spaceship!`,
+          );
+        }
+      }
+
+      const delegator = foundry.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const txIntent: UnconfirmedCraftSpaceship = {
+        delegator: delegator,
+        methodName: "df__craftSpaceship",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          locationIdToDecStr(foundryHash),
+          spaceshipType,
+          materials,
+          amounts.map((amount) => BigInt(Number(amount))),
+          biome,
+        ]),
+        foundryHash,
+        spaceshipType,
+        materials,
+        amounts,
+        biome,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__craftSpaceship",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async upgradeFoundry(
+    foundryHash: LocationId,
+  ): Promise<Transaction<UnconfirmedUpgradeFoundry>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const foundry = this.entityStore.getPlanetWithId(foundryHash);
+      if (!foundry) {
+        throw new Error("tried to upgrade an unknown foundry");
+      }
+      if (foundry.planetType !== PlanetType.RUINS) {
+        throw new Error("can only upgrade foundries");
+      }
+      if (!this.checkDelegateCondition(foundry.owner, this.getAccount())) {
+        throw new Error("can only upgrade foundries you own");
+      }
+      if (foundry.planetLevel < 4) {
+        throw new Error("foundry must be level 4 or higher to upgrade");
+      }
+
+      // Get current upgrade level from MUD components
+      const components = this.components;
+      if (!components || !components.FoundryUpgrade) {
+        throw new Error("MUD components not initialized");
+      }
+
+      // Convert LocationId to proper hex string format
+      const foundryHashHex = locationIdToHexStr(foundryHash) as `0x${string}`;
+
+      const foundryEntity = encodeEntity(
+        components.FoundryUpgrade.metadata.keySchema,
+        {
+          foundryHash: foundryHashHex,
+        },
+      );
+
+      const upgradeData = getComponentValue(
+        components.FoundryUpgrade,
+        foundryEntity,
+      );
+      const currentLevel = upgradeData?.branchLevel || 0;
+
+      if (currentLevel >= 2) {
+        throw new Error("foundry is already at maximum upgrade level");
+      }
+
+      // Calculate upgrade fee
+      const baseFee =
+        currentLevel === 0
+          ? BigInt(50_000_000_000_000) // 0.00005 ETH
+          : BigInt(100_000_000_000_000); // 0.0001 ETH
+
+      // Calculate biome matching contract's _calculateBiomeFromPlanet logic
+      const calculatedBiome = this.calculateBiomeFromPlanet(foundry);
+      const biomeMultiplier = this.getBiomeMultiplier(calculatedBiome);
+
+      // Get highest artifact rarity on foundry using heldArtifactIds (matches contract's artifactStorage)
+      const highestRarity = this.getHighestArtifactRarity(
+        foundry.heldArtifactIds || [],
+      );
+      const rarityMultiplier = this.getRarityMultiplier(highestRarity);
+
+      // Total fee = baseFee * biomeMultiplier * rarityMultiplier / 10000
+      const totalFee =
+        (baseFee * BigInt(biomeMultiplier) * BigInt(rarityMultiplier)) /
+        BigInt(10000);
+
+      // Get entry fee
+      const entryFee = this.getTransactionFee();
+      const totalValue = BigInt(entryFee) + totalFee;
+
+      const delegator = foundry.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const txIntent: UnconfirmedUpgradeFoundry = {
+        delegator: delegator,
+        methodName: "df__upgradeFoundry",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([locationIdToDecStr(foundryHash)]),
+        foundryHash,
+      };
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        gasLimit: 3000000,
+        value: totalValue.toString(),
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__upgradeFoundry",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  private getBiomeMultiplier(biome: Biome): number {
+    // Biome enum values: 1-10
+    if (biome >= 1 && biome <= 3) return 100;
+    if (biome >= 4 && biome <= 6) return 150;
+    if (biome >= 7 && biome <= 9) return 200;
+    if (biome === 10) return 250;
+    return 100;
+  }
+
+  private getRarityMultiplier(rarity: ArtifactRarity): number {
+    // ArtifactRarity enum values: UNKNOWN=0, COMMON=1, RARE=2, EPIC=3, LEGENDARY=4, MYTHIC=5
+    if (rarity === ArtifactRarity.Common) return 100;
+    if (rarity === ArtifactRarity.Rare) return 120;
+    if (rarity === ArtifactRarity.Epic) return 150;
+    if (rarity === ArtifactRarity.Legendary) return 200;
+    if (rarity === ArtifactRarity.Mythic) return 300;
+    return 100;
+  }
+
+  private calculateBiomeFromPlanet(planet: Planet): Biome {
+    // Match contract's _calculateBiomeFromPlanet logic
+    if (!isLocatable(planet)) {
+      return Biome.OCEAN;
+    }
+
+    // If planet is in Dead Space, its biome is Corrupted
+    if (planet.spaceType === SpaceType.DEAD_SPACE) {
+      return Biome.CORRUPTED;
+    }
+
+    // Calculate biomeBase deterministically from planet hash and perlin
+    // This matches the logic used in ArtifactLib._initBiome and contract's _calculateBiomeFromPlanet
+    // Contract uses: keccak256(abi.encodePacked(planet.planetHash, planet.perlin)) % 1000
+    // Convert locationId (hex string without 0x prefix) to BigInt for hashing
+    // locationId is a hex string without prefix, so we need to add "0x" for BigInt conversion
+    const planetHashBigInt = BigInt("0x" + planet.locationId);
+    const perlinBigInt = BigInt(planet.perlin);
+    // Use keccak256 to match contract exactly
+    const packed = utils.solidityPack(
+      ["uint256", "uint256"],
+      [planetHashBigInt.toString(), perlinBigInt.toString()],
+    );
+    const hash = utils.keccak256(packed);
+    const biomeBase = Number(BigInt(hash) % BigInt(1000));
+
+    // Calculate biome using the same logic as PlanetLib._getBiome
+    let res = Number(planet.spaceType) * 3;
+    const threshold1 = this.contractConstants.BIOME_THRESHOLD_1;
+    const threshold2 = this.contractConstants.BIOME_THRESHOLD_2;
+
+    if (biomeBase < threshold1) {
+      res -= 2; // lowest biome variant for this zone
+    } else if (biomeBase < threshold2) {
+      res -= 1; // middle biome variant
+    }
+
+    // Ensure biome is within valid range (1-10)
+    if (res > 10) {
+      res = 10;
+    }
+    if (res < 1) {
+      res = 1;
+    }
+
+    return res as Biome;
+  }
+
+  private getHighestArtifactRarity(artifactIds: ArtifactId[]): ArtifactRarity {
+    if (!artifactIds || artifactIds.length === 0) {
+      return ArtifactRarity.Common;
+    }
+
+    let highest = ArtifactRarity.Common;
+    for (const artifactId of artifactIds) {
+      const artifact = this.entityStore.getArtifactById(artifactId);
+      if (artifact && artifact.rarity > highest) {
+        highest = artifact.rarity;
+      }
+    }
+    return highest;
+  }
+
   public async revertMove(
     moveId: string,
     toPlanetHash: LocationId,
@@ -6726,6 +6992,12 @@ export class GameManager extends EventEmitter {
     distance: number | undefined,
     sentEnergy: number,
     abandoning: boolean,
+    spaceshipBonuses?: {
+      attackBonus: number;
+      defenseBonus: number;
+      speedBonus: number;
+      rangeBonus: number;
+    },
   ) {
     const from = this.getPlanetWithId(fromId);
     const to = this.getPlanetWithId(toId);
@@ -6748,9 +7020,26 @@ export class GameManager extends EventEmitter {
     //   }
     // }
 
-    const range = from.range * this.getRangeBuff(abandoning);
+    let range = from.range * this.getRangeBuff(abandoning);
+
+    // Apply spaceship range bonus if provided
+    if (spaceshipBonuses && spaceshipBonuses.rangeBonus > 0) {
+      range = range * ((100 + spaceshipBonuses.rangeBonus) / 100);
+    }
+
     const scale = (1 / 2) ** (dist / range);
     let ret = scale * sentEnergy - 0.05 * from.energyCap;
+
+    // Apply spaceship attack bonus if attacking an enemy and spaceship bonuses are provided
+    if (
+      spaceshipBonuses &&
+      spaceshipBonuses.attackBonus > 0 &&
+      to &&
+      to.owner !== from.owner
+    ) {
+      ret = (ret * (100 + spaceshipBonuses.attackBonus)) / 100;
+    }
+
     if (ret < 0) {
       ret = 0;
     }
@@ -6833,6 +7122,12 @@ export class GameManager extends EventEmitter {
     fromId: LocationId,
     toId: LocationId,
     abandoning = false,
+    spaceshipBonuses?: {
+      attackBonus: number;
+      defenseBonus: number;
+      speedBonus: number;
+      rangeBonus: number;
+    },
   ): number {
     const from = this.getPlanetWithId(fromId);
     if (!isLocatable(from)) {
@@ -6849,7 +7144,12 @@ export class GameManager extends EventEmitter {
 
     // NOTE: The speed factor will always be 1 when SPACE_JUNK_ENABLED=false
     const speedFactor = this.getSpeedBuff(abandoning);
-    const speed = from.speed * speedFactor;
+    let speed = from.speed * speedFactor;
+
+    // Apply spaceship speed bonus if provided
+    if (spaceshipBonuses && spaceshipBonuses.speedBonus > 0) {
+      speed = speed * ((100 + spaceshipBonuses.speedBonus) / 100);
+    }
 
     let deltaTime = dist / (speed / 100);
 

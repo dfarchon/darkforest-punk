@@ -47,6 +47,9 @@ import {
   useUIManager,
 } from "../Utils/AppHooks";
 import { useEmitterValue } from "../Utils/EmitterHooks";
+import { useSpaceshipMovement } from "../../hooks/useSpaceshipMovement";
+import { isArtifactSpaceShip } from "@df/gamelogic";
+import { ArtifactType } from "@df/types";
 import { SelectArtifactRow } from "./ArtifactRow";
 import {
   Halved,
@@ -145,6 +148,23 @@ export function PlanetCard({
     uiManager.isAbandoning$,
     uiManager.isAbandoning(),
   );
+
+  // Get spaceship bonuses if a spaceship is selected for movement
+  const { getSpaceshipBonusesForArtifact } = useSpaceshipMovement();
+  const artifactSendingChange = useEmitterValue(
+    uiManager.artifactSending$,
+    undefined,
+  );
+  const artifactSending =
+    planet && artifactSendingChange?.planetId === planet.locationId
+      ? artifactSendingChange.artifact
+      : undefined;
+
+  // Get real spaceship bonuses from MUD table
+  const spaceshipBonuses =
+    artifactSending && isArtifactSpaceShip(artifactSending.artifactType)
+      ? getSpaceshipBonusesForArtifact(artifactSending)
+      : undefined;
 
   const gameManager = uiManager.getGameManager();
   const player = gameManager.getPlayer(planet?.owner);
@@ -361,9 +381,18 @@ export function PlanetCard({
                     <AlignCenterHorizontally>
                       <SpeedText
                         planet={planet}
-                        buff={
-                          isAbandoning ? uiManager.getSpeedBuff() : undefined
-                        }
+                        buff={(() => {
+                          if (isAbandoning) {
+                            return uiManager.getSpeedBuff();
+                          }
+                          if (
+                            spaceshipBonuses &&
+                            spaceshipBonuses.speedBonus > 0
+                          ) {
+                            return (100 + spaceshipBonuses.speedBonus) / 100;
+                          }
+                          return undefined;
+                        })()}
                       />
                       {planet?.bonus && planet.bonus[StatIdx.Speed] && (
                         <TimesTwo />
@@ -393,9 +422,18 @@ export function PlanetCard({
                     <AlignCenterHorizontally>
                       <RangeText
                         planet={planet}
-                        buff={
-                          isAbandoning ? uiManager.getRangeBuff() : undefined
-                        }
+                        buff={(() => {
+                          if (isAbandoning) {
+                            return uiManager.getRangeBuff();
+                          }
+                          if (
+                            spaceshipBonuses &&
+                            spaceshipBonuses.rangeBonus > 0
+                          ) {
+                            return (100 + spaceshipBonuses.rangeBonus) / 100;
+                          }
+                          return undefined;
+                        })()}
                       />
                       {planet?.bonus && planet.bonus[StatIdx.Range] && (
                         <TimesTwo />

@@ -38,6 +38,7 @@ import {
 import { ArtifactBiomeLabelAnim } from "../Components/Labels/BiomeLabels";
 import { AccountLabel } from "../Components/Labels/Labels";
 import { ReadMore } from "../Components/ReadMore";
+import { SpaceshipBonuses } from "../Components/SpaceshipBonuses";
 import { Green, Red, Sub, Text, Text2, White } from "../Components/Text";
 import { TextPreview } from "../Components/TextPreview";
 import { formatDuration, TimeUntil } from "../Components/TimeUntil";
@@ -341,8 +342,12 @@ export function ArtifactDetailsBody({
         )}
       </div>
 
-      {isSpaceShip(artifact.artifactType) && (
-        <ArtifactDescription collapsable={false} artifact={artifact} />
+      {(isSpaceShip(artifact.artifactType) ||
+        artifact.artifactType === ArtifactType.Spaceship) && (
+        <>
+          <ArtifactDescription collapsable={false} artifact={artifact} />
+          <SpaceshipBonuses artifact={artifact} />
+        </>
       )}
 
       <StyledArtifactDetailsBody>
@@ -412,7 +417,8 @@ export function ArtifactDetailsBody({
         )} */}
 
         <ArtifactChangeImageType
-          artifactId={artifactWrapper.value?.id}
+          key={artifactId}
+          artifactId={artifactId}
           depositOn={depositOn}
         />
 

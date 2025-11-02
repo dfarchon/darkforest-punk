@@ -281,6 +281,35 @@ library ArtifactLib {
     revert Errors.UnkonwnArtifactType();
   }
 
+  function NewSpaceshipArtifact(
+    uint256 seed,
+    uint256 planetHash,
+    uint8 spaceshipType,
+    Biome biome,
+    ArtifactRarity rarity
+  ) internal view returns (Artifact memory artifact) {
+    uint256 round = Round.get();
+    uint256 internalId = Counter.getArtifact() + 1;
+    if (internalId > type(uint24).max) revert Errors.ArtifactIdOverflow();
+
+    artifact.id = (round << 24) + internalId;
+    artifact.planetHash = planetHash;
+    artifact.artifactIndex = 3; // Spaceship type (from original Dark Forest)
+    artifact.rarity = rarity;
+    artifact.biome = biome;
+    artifact.status = ArtifactStatus.DEFAULT;
+
+    // Set spaceship-specific metadata
+    artifact.genre = ArtifactGenre.GENERAL;
+    artifact.charge = 0;
+    artifact.cooldown = 0;
+    artifact.durable = true;
+    artifact.reusable = true;
+    artifact.reqLevel = 0;
+    artifact.reqPopulation = 0;
+    artifact.reqSilver = 0;
+  }
+
   function _initBiome(
     Artifact memory artifact,
     SpaceType spaceType,

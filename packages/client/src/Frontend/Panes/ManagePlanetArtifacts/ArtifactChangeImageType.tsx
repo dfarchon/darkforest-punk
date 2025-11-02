@@ -70,6 +70,9 @@ export function ArtifactChangeImageType({
   const depositPlanet = depositPlanetWrapper.value;
   const onPlanet = onPlanetWrapper.value;
 
+  // Calculate defaultImageType during render
+  // Since we use key={artifactId} in parent, React will remount this component
+  // when artifactId changes, so state will be initialized correctly
   const defaultImageType =
     onPlanet &&
     artifact &&
@@ -78,7 +81,21 @@ export function ArtifactChangeImageType({
       ? artifact.imageType
       : logoTypeToNum(LogoType.DFARES);
 
-  const [imageType, setImageType] = useState(defaultImageType.toString());
+  // Initialize state with defaultImageType
+  // The useState initializer function only runs once per mount,
+  // so it will capture the defaultImageType value at mount time
+  const [imageType, setImageType] = useState(() => {
+    // Calculate defaultImageType inside the initializer to ensure
+    // we're using the values available at mount time
+    const mountDefaultImageType =
+      onPlanet &&
+      artifact &&
+      artifact.artifactType === ArtifactType.Avatar &&
+      artifact.imageType > 0
+        ? artifact.imageType
+        : logoTypeToNum(LogoType.DFARES);
+    return mountDefaultImageType.toString();
+  });
 
   // const otherArtifactsOnPlanet = usePlanetArtifacts(onPlanetWrapper, uiManager);
 

@@ -675,14 +675,13 @@ export class PlanetUtils {
         cap: 0,
         growthRate: 0,
         growth: false,
-        lastUpdateTick: 0,
       });
     }
 
     if (planetType !== PlanetType.SILVER_MINE) {
       return materials;
     }
-
+    // growth rate is calculated based on the material type like in the contract getMaterialGrowth Planet.sol line 688
     // Helper function to set material by finding the correct index
     const setMaterialByType = (materialType: MaterialType) => {
       const index = materials.findIndex(
@@ -693,9 +692,8 @@ export class PlanetUtils {
           materialId: materialType,
           materialAmount: amount,
           cap: cap,
-          growthRate: growthRate,
+          growthRate: growthRate / (Number(materialType) * 2),
           growth: true,
-          lastUpdateTick: 0,
         };
       }
     };
@@ -759,7 +757,6 @@ export class PlanetUtils {
       cap: 0,
       growthRate: 0,
       growth: false,
-      lastUpdateTick: planet.lastUpdated,
     });
 
     // Check each material type starting from 1
@@ -812,7 +809,7 @@ export class PlanetUtils {
         materialId: i as MaterialType,
         materialAmount: materialAmount,
         cap: materialCap,
-        growthRate: materialGrowthRate,
+        growthRate: materialGrowthRate / (Number(i) * 2),
         growth: growth,
         lastUpdateTick: planet.lastUpdated,
       });

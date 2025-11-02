@@ -17,6 +17,8 @@ import type {
   UnconfirmedCapturePlanet,
   UnconfirmedChangeArtifactImageType,
   UnconfirmedChargeArtifact,
+  UnconfirmedCraftSpaceship,
+  UnconfirmedUpgradeFoundry,
   UnconfirmedClaim,
   UnconfirmedClearJunk,
   UnconfirmedCreateGuild,
@@ -178,6 +180,30 @@ export function isUnconfirmedWithdrawSilver(
   txIntent: TxIntent,
 ): txIntent is UnconfirmedWithdrawSilver {
   return txIntent.methodName === "df__withdrawSilver";
+}
+
+export function isUnconfirmedCraftSpaceship(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedCraftSpaceship {
+  return txIntent.methodName === "df__craftSpaceship";
+}
+
+export function isUnconfirmedCraftSpaceshipTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedCraftSpaceship> {
+  return isUnconfirmedCraftSpaceship(tx.intent);
+}
+
+export function isUnconfirmedUpgradeFoundry(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedUpgradeFoundry {
+  return txIntent.methodName === "df__upgradeFoundry";
+}
+
+export function isUnconfirmedUpgradeFoundryTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedUpgradeFoundry> {
+  return isUnconfirmedUpgradeFoundry(tx.intent);
 }
 
 export function isUnconfirmedWithdrawMaterial(

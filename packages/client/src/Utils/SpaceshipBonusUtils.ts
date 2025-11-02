@@ -31,7 +31,6 @@ export function getSpaceshipBonuses(
   //   });
 
   if (artifact.artifactType !== 3) {
-    console.log("Not a spaceship artifact (type 3), returning undefined");
     return undefined;
   }
 
@@ -44,14 +43,13 @@ export function getSpaceshipBonuses(
     const uint32Id = fullArtifactId & uint32Mask;
     spaceshipArtifactIdKey = uint32Id.toString();
   } catch (e) {
-    console.error("Error converting artifact.id to uint32 key:", e);
+    // Error converting artifact.id to uint32 key - return undefined
     return undefined;
   }
 
   const bonusMaps = mudComponents.SpaceshipBonus?.values;
 
   if (!bonusMaps) {
-    console.log("No bonus maps found, returning undefined");
     return undefined;
   }
 

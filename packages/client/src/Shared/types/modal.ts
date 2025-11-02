@@ -42,6 +42,7 @@ export const ModalName = {
   Onboarding: "Onboarding" as ModalName,
   Private: "Private" as ModalName,
   Wallet: "Wallet" as ModalName,
+  FoundryUpgrade: "FoundryUpgrade" as ModalName,
 } as const;
 
 export type CursorState = Abstract<string, "CursorState">;

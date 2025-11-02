@@ -1410,6 +1410,9 @@ export function BluePillLandingPage() {
 
       window.ui = newGameUIManager;
 
+      // Set MUD components for spaceship bonus calculations
+      newGameUIManager.setMUDComponents(components);
+
       terminal.current?.newline();
       terminal.current?.println("Connected to " + WORLD_NAME + " Contract");
 

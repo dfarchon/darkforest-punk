@@ -50,6 +50,7 @@ export class ArtifactUtils {
       BloomFilterMetadata,
       WormholeMetadata,
       CannonMetadata,
+      CraftedSpaceship,
     } = this.components;
 
     const artifactEntity = encodeEntity(Artifact.metadata.keySchema, {
@@ -85,6 +86,19 @@ export class ArtifactUtils {
         PinkBombMetadata,
         encodeEntity({ rarity: "uint8" }, { rarity: artifactRec.rarity }),
       );
+    } else if (artifactRec.artifactIndex === 3) {
+      // Spaceship artifacts - use fallback metadata since SpaceshipMetadata table doesn't exist yet
+      metadata = {
+        rarity: artifactRec.rarity,
+        genre: 0, // General
+        charge: 0,
+        cooldown: 0,
+        durable: true,
+        reusable: true,
+        reqLevel: 4, // Minimum level for spaceships
+        reqPopulation: BigInt(0),
+        reqSilver: BigInt(0),
+      };
     } else if (artifactRec.artifactIndex === 4) {
       metadata = getComponentValue(
         BloomFilterMetadata,
@@ -102,7 +116,7 @@ export class ArtifactUtils {
       );
     }
 
-    if (!metadata) {
+    if (!metadata && artifactRec.artifactIndex !== 3) {
       throw new Error(
         `artifact metadata not found, artifact index: ${artifactRec.artifactIndex}, rarity: ${artifactRec.rarity}`,
       );
@@ -113,6 +127,22 @@ export class ArtifactUtils {
       artifactType,
       artifactRec.rarity as ArtifactRarity,
     );
+
+    // Get spaceship type from CraftedSpaceship table if this is a spaceship
+    let spaceshipType: number | undefined;
+    if (artifactRec.artifactIndex === 3) {
+      const craftedSpaceshipEntity = encodeEntity(
+        CraftedSpaceship.metadata.keySchema,
+        { artifactId: Number(artifactIdToDecStr(artifactId)) },
+      );
+      const craftedSpaceshipData = getComponentValue(
+        CraftedSpaceship,
+        craftedSpaceshipEntity,
+      );
+      if (craftedSpaceshipData) {
+        spaceshipType = craftedSpaceshipData.spaceshipType;
+      }
+    }
 
     return {
       isInititalized: true,
@@ -145,6 +175,7 @@ export class ArtifactUtils {
       reqSilver: metadata.reqSilver,
       chargeUpgrade,
       activateUpgrade,
+      spaceshipType: spaceshipType, // Add spaceship type from CraftedSpaceship table
       transactions: new TxCollection(),
     };
   }
@@ -170,6 +201,19 @@ export class ArtifactUtils {
         PinkBombMetadata,
         encodeEntity({ rarity: "uint8" }, { rarity: rarity }),
       );
+    } else if (index === 3) {
+      // Spaceship artifacts - use fallback metadata since SpaceshipMetadata table doesn't exist yet
+      metadata = {
+        rarity: rarity,
+        genre: 0, // General
+        charge: 0,
+        cooldown: 0,
+        durable: true,
+        reusable: true,
+        reqLevel: 4, // Minimum level for spaceships
+        reqPopulation: BigInt(0),
+        reqSilver: BigInt(0),
+      };
     } else if (index === 4) {
       metadata = getComponentValue(
         BloomFilterMetadata,
@@ -187,7 +231,7 @@ export class ArtifactUtils {
       );
     }
 
-    if (!metadata) {
+    if (!metadata && index !== 3) {
       throw new Error(
         `artifact metadata not found, artifact index: ${index}, rarity: ${rarity}`,
       );
@@ -237,6 +281,8 @@ export class ArtifactUtils {
   private getArtifactType(index: number): ArtifactType {
     if (index === 1) {
       return ArtifactType.Bomb;
+    } else if (index === 3) {
+      return ArtifactType.Spaceship; // Spaceship artifacts
     } else if (index === 4) {
       return ArtifactType.BloomFilter;
     } else if (index === 5) {

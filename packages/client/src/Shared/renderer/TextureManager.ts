@@ -215,7 +215,17 @@ export function spriteFromArtifact(
     return artifactSpriteMap.get(id) || EMPTY_SPRITE;
   }
 
-  if (isSpaceShip(artifact.artifactType)) {
+  // Handle spaceship artifacts (both old types 17-22 and new type 3)
+  if (
+    isSpaceShip(artifact.artifactType) ||
+    artifact.artifactType === ArtifactType.Spaceship
+  ) {
+    // For new spaceship type (3), we can't use the sprite atlas, return empty sprite
+    // The actual rendering will be handled by ArtifactImage component or PlanetRenderManager
+    if (artifact.artifactType === ArtifactType.Spaceship) {
+      return EMPTY_SPRITE; // Custom spaceship sprites are handled separately
+    }
+    // For old spaceship types (17-22), use existing sprite atlas
     const idx = {
       [ArtifactType.ShipMothership]: 0,
       [ArtifactType.ShipCrescent]: 1,

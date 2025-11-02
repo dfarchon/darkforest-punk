@@ -27,6 +27,7 @@ import {
   isUnconfirmedBuyPlanetTx,
   isUnconfirmedBuySpaceshipTx,
   isUnconfirmedCapturePlanetTx,
+  isUnconfirmedCraftSpaceshipTx,
   isUnconfirmedChangeArtifactImageTypeTx,
   isUnconfirmedChargeArtifactTx,
   isUnconfirmedClaimTx,
@@ -450,6 +451,16 @@ export class GameManagerFactory {
           await gameManager.hardRefreshPlanet(tx.intent.locationId);
         } else if (isUnconfirmedBuySpaceshipTx(tx)) {
           await gameManager.hardRefreshPlanet(tx.intent.locationId);
+        } else if (isUnconfirmedCraftSpaceshipTx(tx)) {
+          // Wait a bit for MUD components to sync after transaction confirmation
+          // Materials are stored in MUD tables (PlanetMaterial), so we need to wait
+          // for the store sync to complete before refreshing
+          await delay(500);
+          await gameManager.hardRefreshPlanet(tx.intent.foundryHash);
+          // Force an update to ensure materials are refreshed in UI
+          gameManager.getGameObjects().forceTick(tx.intent.foundryHash);
+          // Emit planet update event to trigger UI refresh
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
         } else if (isUnconfirmedFindArtifactTx(tx)) {
           await gameManager.hardRefreshPlanet(tx.intent.planetId);
         } else if (isUnconfirmedDepositArtifactTx(tx)) {

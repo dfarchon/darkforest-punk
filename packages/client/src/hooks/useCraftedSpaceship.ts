@@ -1,5 +1,6 @@
 import { useMUD } from "@mud/MUDContext";
 import type { Artifact } from "@df/types";
+import { ArtifactType } from "@df/types";
 
 export interface CraftedSpaceshipData {
   spaceshipType: number;
@@ -22,7 +23,7 @@ export function useCraftedSpaceshipByArtifact(
   } = useMUD();
 
   // Check if this is a spaceship artifact
-  if (artifact.artifactType !== 3) {
+  if (artifact.artifactType !== ArtifactType.Spaceship) {
     return undefined;
   }
 

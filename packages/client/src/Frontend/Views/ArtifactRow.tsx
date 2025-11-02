@@ -1,5 +1,6 @@
 import { isSpaceShip } from "@df/gamelogic";
 import type { Artifact } from "@df/types";
+import { ArtifactType } from "@df/types";
 import React, { useCallback, useEffect, useMemo } from "react";
 import styled, { css } from "styled-components";
 
@@ -68,7 +69,10 @@ export function ArtifactThumb({
   const uiManager = useUIManager();
   const enemy = useMemo(() => {
     const account = uiManager.getAccount();
-    if (isSpaceShip(artifact.artifactType)) {
+    if (
+      isSpaceShip(artifact.artifactType) ||
+      artifact.artifactType === ArtifactType.Spaceship
+    ) {
       return artifact?.controller !== account;
     }
 

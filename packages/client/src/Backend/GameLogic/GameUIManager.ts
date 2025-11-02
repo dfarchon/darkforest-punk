@@ -600,6 +600,23 @@ export class GameUIManager extends EventEmitter {
     this.gameManager.withdrawMaterial(locationId, materialType, amount);
   }
 
+  public craftSpaceship(
+    foundryHash: LocationId,
+    spaceshipType: number,
+    materials: MaterialType[],
+    amounts: number[],
+    biome: Biome,
+  ) {
+    this.playClickSound();
+    this.gameManager.craftSpaceship(
+      foundryHash,
+      spaceshipType,
+      materials,
+      amounts,
+      biome,
+    );
+  }
+
   public revertMove(
     moveId: string,
     toPlanetHash: LocationId,
@@ -762,12 +779,23 @@ export class GameUIManager extends EventEmitter {
     energy: number,
     mudComponents?: unknown,
   ) {
+    const artifactSending = this.getArtifactSending(from);
+    let spaceshipBonuses;
+
+    // Use provided MUD components or fall back to stored ones
+    const componentsToUse = mudComponents || this.mudComponents;
+
+    if (artifactSending && componentsToUse) {
+      spaceshipBonuses = getSpaceshipBonuses(artifactSending, componentsToUse);
+    }
+
     return this.gameManager.getEnergyArrivingForMove(
       from,
       to,
       dist,
       energy,
       this.abandoning,
+      spaceshipBonuses,
     );
   }
 
@@ -776,7 +804,22 @@ export class GameUIManager extends EventEmitter {
     toId: LocationId,
     abandoning = false,
   ): number {
-    return this.gameManager.getTimeForMove(fromId, toId, abandoning);
+    const artifactSending = this.getArtifactSending(fromId);
+    let spaceshipBonuses;
+
+    if (artifactSending && this.mudComponents) {
+      spaceshipBonuses = getSpaceshipBonuses(
+        artifactSending,
+        this.mudComponents,
+      );
+    }
+
+    return this.gameManager.getTimeForMove(
+      fromId,
+      toId,
+      abandoning,
+      spaceshipBonuses,
+    );
   }
 
   public getEnergyNeededForMove(
@@ -989,12 +1032,11 @@ export class GameUIManager extends EventEmitter {
 
         const dist = this.gameManager.getDist(from.locationId, to.locationId);
 
-        const myAtk: number = this.gameManager.getEnergyArrivingForMove(
+        const myAtk: number = this.getEnergyArrivingForMove(
           from.locationId,
           to.locationId,
           dist,
           forces,
-          this.abandoning,
         );
 
         let effPercentSilver = this.getSilverSending(from.locationId);
@@ -1012,7 +1054,7 @@ export class GameUIManager extends EventEmitter {
         if (myAtk > 0 || this.isSendingShip(from.locationId)) {
           const abandoning = this.isAbandoning();
           const silver = Math.floor((from.silver * effPercentSilver) / 100);
-          const materials = this.getMaterialsSending(from.locationId) ?? [];
+          const materials = this.getMaterialsSending?.(from.locationId) ?? [];
           // TODO: do something like JSON.stringify(args) so we know formatting is correct
           this.terminal.current?.printShellLn(
             `df.move('${from.locationId}', '${to.locationId}', ${forces}, ${silver}, ${JSON.stringify(materials ?? [])})`,
@@ -1780,7 +1822,26 @@ export class GameUIManager extends EventEmitter {
     // KEEP THIS its for artifact types 17 - 22 not for artifact type 3 artifact.spaceship
     return isSpaceShip(this.artifactSending[planetId]?.artifactType);
   }
-  m;
+
+  public getSpaceshipRangeBoost(planetId: LocationId): number {
+    const artifact = this.artifactSending[planetId];
+    if (!artifact || !isArtifactSpaceShip(artifact.artifactType)) {
+      return 1;
+    }
+
+    // Get spaceship bonuses from MUD components
+    if (this.mudComponents) {
+      const spaceshipBonuses = getSpaceshipBonuses(
+        artifact,
+        this.mudComponents,
+      );
+      if (spaceshipBonuses && spaceshipBonuses.rangeBonus > 0) {
+        return (100 + spaceshipBonuses.rangeBonus) / 100; // Convert percentage to multiplier
+      }
+    }
+
+    return 1; // No bonus
+  }
 
   public setMUDComponents(components: unknown): void {
     this.mudComponents = components;
@@ -2113,6 +2174,11 @@ export class GameUIManager extends EventEmitter {
       `df.upgrade('${planet.locationId}', ${branch})`,
     );
     this.gameManager.upgrade(planet.locationId, branch);
+  }
+
+  public upgradeFoundry(foundryHash: LocationId): void {
+    this.terminal.current?.printShellLn(`df.upgradeFoundry('${foundryHash}')`);
+    this.gameManager.upgradeFoundry(foundryHash);
   }
 
   public refreshPlanet(planet: Planet): void {

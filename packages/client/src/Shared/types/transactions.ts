@@ -36,6 +36,7 @@ export type ContractMethodName =
   | "buyArtifact"
   | "df__withdrawSilver"
   | "df__withdrawMaterial"
+  | "df__craftSpaceship"
   | "df__addJunk"
   | "df__clearJunk"
   | "df__buyJunk"
@@ -283,6 +284,26 @@ export type UnconfirmedWithdrawMaterial = TxIntent & {
   locationId: LocationId;
   materialType: MaterialType;
   amount: number;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedCraftSpaceship = TxIntent & {
+  methodName: "df__craftSpaceship";
+  foundryHash: LocationId;
+  spaceshipType: number;
+  materials: number[];
+  amounts: number[];
+  biome: number;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedUpgradeFoundry = TxIntent & {
+  methodName: "df__upgradeFoundry";
+  foundryHash: LocationId;
 };
 
 /**

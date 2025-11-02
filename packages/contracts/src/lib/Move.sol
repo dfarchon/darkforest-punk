@@ -8,6 +8,7 @@ import { PendingMove, PendingMoveData } from "codegen/tables/PendingMove.sol";
 import { Counter } from "codegen/tables/Counter.sol";
 import { Artifact as ArtifactTable } from "codegen/tables/Artifact.sol";
 import { ArtifactOwner } from "codegen/tables/ArtifactOwner.sol";
+import { SpaceshipBonus, SpaceshipBonusData } from "codegen/tables/SpaceshipBonus.sol";
 import { PlanetType, ArtifactStatus, MaterialType } from "codegen/common.sol";
 import { Planet } from "libraries/Planet.sol";
 import { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
@@ -101,6 +102,12 @@ library MoveLib {
     }
 
     move.artifact = artifactId;
+
+    // Check if this is a spaceship artifact (type 3) and apply bonuses
+    if (ArtifactTable.getArtifactIndex(uint32(artifactId)) == 3) {
+      from = _applySpaceshipBonuses(from, uint32(artifactId));
+    }
+
     from.removeArtifact(artifactId);
 
     return (move, from);
@@ -143,6 +150,22 @@ library MoveLib {
   function _unloadPopulation(MoveData memory move, Planet memory to) internal view {
     uint256 population = to.population;
     uint256 arrivedPopulation = move.population;
+
+    // Apply spaceship attack bonus if attacking an enemy and spaceship is being moved
+    if (
+      move.captain != to.owner &&
+      !GuildUtils.inSameGuild(move.captain, to.owner, move.arrivalTick) &&
+      move.artifact != 0
+    ) {
+      if (ArtifactTable.getArtifactIndex(uint32(move.artifact)) == 3) {
+        // This is a spaceship artifact, apply attack bonus
+        SpaceshipBonusData memory bonuses = SpaceshipBonus.get(uint32(move.artifact));
+        if (bonuses.attackBonus > 0) {
+          arrivedPopulation = (arrivedPopulation * (100 + bonuses.attackBonus)) / 100;
+        }
+      }
+    }
+
     if (move.captain == to.owner || GuildUtils.inSameGuild(move.captain, to.owner, move.arrivalTick)) {
       population += arrivedPopulation;
     } else {
@@ -189,6 +212,35 @@ library MoveLib {
     if (move.artifact != 0) {
       to.pushArtifact(move.artifact);
     }
+  }
+
+  /**
+   * @notice Apply spaceship bonuses to planet stats for movement calculations
+   * @param planet The planet to apply bonuses to
+   * @param spaceshipArtifactId The spaceship artifact ID
+   * @return Modified planet with applied bonuses
+   */
+  function _applySpaceshipBonuses(
+    Planet memory planet,
+    uint32 spaceshipArtifactId
+  ) internal view returns (Planet memory) {
+    // Get spaceship bonuses from the table
+    SpaceshipBonusData memory bonuses = SpaceshipBonus.get(spaceshipArtifactId);
+
+    // Apply speed bonus: newSpeed = originalSpeed * ((100 + speedBonus) / 100)
+    if (bonuses.speedBonus > 0) {
+      planet.speed = (planet.speed * (100 + bonuses.speedBonus)) / 100;
+    }
+
+    // Apply range bonus: newRange = originalRange * ((100 + rangeBonus) / 100)
+    if (bonuses.rangeBonus > 0) {
+      planet.range = (planet.range * (100 + bonuses.rangeBonus)) / 100;
+    }
+
+    // Note: Attack bonus affects the population being moved (arrivedPopulation in combat)
+    // Defense bonus is skipped as requested
+
+    return planet;
   }
 }
 

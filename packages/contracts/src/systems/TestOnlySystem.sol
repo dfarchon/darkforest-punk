@@ -156,6 +156,22 @@ contract TestOnlySystem is BaseSystem {
     Planet memory planet = DFUtils.readAnyPlanet(worldAddress, input.planetHash, input.perlin, input.radiusSquare);
     planet.changeOwner(newOwner);
     planet._initPopulationAndSilver();
+    // TODO PUNKE DELETE THIS FOR PUBLIC?
+    // Only give materials in dev mode (when running pnpm dev - chainId 31337 for anvil/foundry)
+    // Common dev chain IDs: 31337 (anvil/foundry default), 1337 (hardhat)
+    if (block.chainid == 31337) {
+      // If planet is a Foundry, give 2K of each material type
+      if (planet.planetType == PlanetType.FOUNDRY) {
+        uint256 materialAmount = 5000 * 1000; // 2K materials in wei (1e18 precision)
+
+        // Add all material types except UNKNOWN (0)
+        for (uint8 i = 1; i <= uint8(type(MaterialType).max); i++) {
+          MaterialType materialType = MaterialType(i);
+          uint256 currentAmount = planet.getMaterial(materialType);
+          planet.setMaterial(materialType, currentAmount + materialAmount);
+        }
+      }
+    }
 
     planet.writeToStore();
   }

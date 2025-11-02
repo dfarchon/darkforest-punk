@@ -46,6 +46,7 @@ interface Errors {
   error UnknownPlanetType(); // 0xa6fa3da7
   error InvalidUpgradeTarget(); // 0x0ec7b300
   error UpgradeExceedMaxLevel(); // 0x1d245dc9
+  error UpgradeExceedsLimit(); // 0x4e30e24c
   error NotEnoughSilverToUpgrade(); // 0x3c1137b2
   error PlanetNotAvailable(); // 0xa7d5125d
   error PlanetNotInitialized(); // 0xcfd4ee18
@@ -81,6 +82,8 @@ interface Errors {
   error InvalidMaterialType(); // 0x69593a26
   error MissingRequiredMaterials(); // 0xe5774581
   error NotEnoughMaterial1(); // 0x53841e48
+  error InsufficientFoundryUpgradeFee(uint256 required, uint256 provided); // 0x85c21108
+  error FoundryAtMaxUpgradeLevel(); // 0x8c8d77a4
   // planet withdraw silver system
   error InvalidPlanetType(); // 0xcfb7f825
   error InsufficientSilverOnPlanet(); // 0xfe845fce

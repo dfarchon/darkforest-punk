@@ -684,9 +684,10 @@ library PlanetLib {
   function getMaterialCap(Planet memory planet, MaterialType materialId) internal pure returns (uint256) {
     return planet.silverCap;
   }
-
-  function getMaterialGrowth(Planet memory planet, MaterialType materialId) internal view returns (uint256) {
-    return planet.silverGrowth;
+  // TODO PUNK TEST THIS possible move to DF.config.toml
+  // growth rate is calculated based on the material type like in the client getDefaultMaterials PlanetUtils.ts line 695
+  function getMaterialGrowth(Planet memory planet, MaterialType materialId) internal pure returns (uint256) {
+    return planet.silverGrowth / (uint256(materialId) * 2);
   }
 
   function allowedMaterialsForBiome(Biome biome) internal pure returns (MaterialType[] memory) {
