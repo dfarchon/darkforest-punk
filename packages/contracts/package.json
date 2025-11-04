@@ -12,6 +12,7 @@
     "deploy:base-sepolia": "mud deploy --profile=base-sepolia",
     "deploy:base": "mud deploy --profile=base",
     "deploy:optimism": "mud deploy --profile=optimism",
+    "deploy:status-testnet": "mud deploy --profile=status-testnet",
     "dev": "mud dev-contracts",
     "lint": "pnpm run prettier && pnpm run solhint",
     "prettier": "prettier --write 'src/**/*.sol'",
