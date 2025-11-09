@@ -1,6 +1,7 @@
 import { formatNumber } from "@df/gamelogic";
 import type { LocationId, Materials, MaterialType } from "@df/types";
 import { PlanetType } from "@df/types";
+import { MaterialSprite } from "@frontend/Components/MaterialSprite";
 import { getMaterialTooltipName } from "@frontend/Panes/Tooltip";
 import { useState } from "react";
 import styled from "styled-components";
@@ -12,10 +13,10 @@ import dfstyles from "../Styles/dfstyles";
 import { usePlanet, useUIManager } from "../Utils/AppHooks";
 import { useEmitterValue } from "../Utils/EmitterHooks";
 import type { ModalHandle } from "../Views/ModalPane";
-import { TooltipTrigger } from "./Tooltip";
-import { MaterialSprite } from "@frontend/Components/MaterialSprite";
 import { TabbedView } from "../Views/TabbedView";
+import ModuleCraftingPane from "./ModuleCraftingPane";
 import SpaceshipCraftingPane from "./SpaceshipCraftingPane";
+import { TooltipTrigger } from "./Tooltip";
 
 const PlanetMaterialsWrapper = styled.div`
   display: flex;
@@ -288,6 +289,42 @@ const MaterialScoreInfo = styled.div`
   margin-top: 4px;
 `;
 
+const CraftingToggleContainer = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 2px;
+`;
+
+const CraftingToggleButton = styled.button<{ active: boolean }>`
+  flex: 1;
+  padding: 8px 12px;
+  background-color: ${(props) =>
+    props.active
+      ? dfstyles.colors.backgroundlighter
+      : dfstyles.colors.background};
+  color: ${(props) => (props.active ? "#fff" : dfstyles.colors.subtext)};
+
+  font-size: 12px;
+  // font-weight: ${(props) => (props.active ? "bold" : "normal")};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: ${(props) =>
+      props.active
+        ? dfstyles.colors.borderDarker
+        : dfstyles.colors.borderDarker};
+    // color: ${(props) => (props.active ? "#fff" : dfstyles.colors.text)};
+  }
+`;
+
+const CraftingWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+`;
+
 export function getMaterialName(materialId: MaterialType): string {
   switch (materialId) {
     case 1:
@@ -432,6 +469,11 @@ export function PlanetMaterialsPane({
     [key: number]: number;
   }>({});
 
+  // State for switching between Spaceship and Module crafting
+  const [craftingType, setCraftingType] = useState<"spaceship" | "module">(
+    "spaceship",
+  );
+
   const handleWithdraw = (materialType: MaterialType, amount: number) => {
     if (amount > 0 && planet) {
       uiManager.withdrawMaterial(planet.locationId, materialType, amount);
@@ -548,7 +590,7 @@ export function PlanetMaterialsPane({
   // Build tabs dynamically based on planet type
   const tabTitles: string[] = ["Materials"];
   if (isFoundry) {
-    tabTitles.push("Craft Spaceship");
+    tabTitles.push("Craft");
   }
 
   const tabContents = (tabIndex: number) => {
@@ -726,13 +768,37 @@ export function PlanetMaterialsPane({
         </PlanetMaterialsWrapper>
       );
     } else if (tabIndex === 1 && isFoundry) {
-      // Craft Spaceship tab (only for foundries)
+      // Crafting tab (only for foundries) - toggle between Spaceship and Module
       return (
-        <SpaceshipCraftingPane
-          planet={planet}
-          onClose={() => {}}
-          onCraftComplete={() => {}}
-        />
+        <CraftingWrapper>
+          <CraftingToggleContainer>
+            <CraftingToggleButton
+              active={craftingType === "spaceship"}
+              onClick={() => setCraftingType("spaceship")}
+            >
+              Spaceships
+            </CraftingToggleButton>
+            <CraftingToggleButton
+              active={craftingType === "module"}
+              onClick={() => setCraftingType("module")}
+            >
+              Modules
+            </CraftingToggleButton>
+          </CraftingToggleContainer>
+          {craftingType === "spaceship" ? (
+            <SpaceshipCraftingPane
+              planet={planet}
+              onClose={() => {}}
+              onCraftComplete={() => {}}
+            />
+          ) : (
+            <ModuleCraftingPane
+              planet={planet}
+              onClose={() => {}}
+              onCraftComplete={() => {}}
+            />
+          )}
+        </CraftingWrapper>
       );
     }
     return null;

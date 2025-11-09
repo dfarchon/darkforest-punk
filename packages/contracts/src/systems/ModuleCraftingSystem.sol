@@ -8,8 +8,8 @@ import { Counter } from "codegen/tables/Counter.sol";
 import { DFUtils } from "libraries/DFUtils.sol";
 import { GlobalStats } from "codegen/tables/GlobalStats.sol";
 import { PlayerStats } from "codegen/tables/PlayerStats.sol";
-import { CraftedSpaceship, CraftedSpaceshipData } from "codegen/tables/CraftedSpaceship.sol";
-import { SpaceshipBonus, SpaceshipBonusData } from "codegen/tables/SpaceshipBonus.sol";
+import { CraftedModules, CraftedModulesData } from "codegen/tables/CraftedModules.sol";
+import { ModuleBonus, ModuleBonusData } from "codegen/tables/ModuleBonus.sol";
 import { FoundryCraftingCount, FoundryCraftingCountData } from "codegen/tables/FoundryCraftingCount.sol";
 import { FoundryUpgrade } from "codegen/tables/FoundryUpgrade.sol";
 import { PlanetType, MaterialType, Biome, ArtifactRarity, SpaceType } from "codegen/common.sol";
@@ -17,19 +17,19 @@ import { PlanetBiomeConfig, PlanetBiomeConfigData } from "codegen/tables/PlanetB
 import { IArtifactNFT } from "tokens/IArtifactNFT.sol";
 import { Errors } from "interfaces/errors.sol";
 
-contract FoundryCraftingSystem is BaseSystem {
+contract ModuleCraftingSystem is BaseSystem {
   // ArtifactNFT will be accessed through the world contract
   // No constructor needed - follows the same pattern as other systems
 
-  function craftSpaceship(
+  function craftModule(
     uint256 foundryHash,
-    uint8 spaceshipType,
+    uint8 moduleType,
     MaterialType[] memory materials,
     uint256[] memory amounts,
     Biome biome
   ) public entryFee requireSameOwnerAndJunkOwner(foundryHash) {
     _updateStats();
-    _processSpaceshipCrafting(foundryHash, spaceshipType, materials, amounts, biome);
+    _processModuleCrafting(foundryHash, moduleType, materials, amounts, biome);
   }
 
   function _updateStats() internal {
@@ -37,9 +37,9 @@ contract FoundryCraftingSystem is BaseSystem {
     PlayerStats.setCraftSpaceshipCount(_msgSender(), PlayerStats.getCraftSpaceshipCount(_msgSender()) + 1);
   }
 
-  function _processSpaceshipCrafting(
+  function _processModuleCrafting(
     uint256 foundryHash,
-    uint8 spaceshipType,
+    uint8 moduleType,
     MaterialType[] memory materials,
     uint256[] memory amounts,
     Biome biome
@@ -50,14 +50,14 @@ contract FoundryCraftingSystem is BaseSystem {
     Planet memory foundry = DFUtils.readInitedPlanet(worldAddress, foundryHash);
     address executor = _msgSender();
 
-    _validateSpaceshipCrafting(foundry, executor, spaceshipType, materials, amounts);
-    _executeCrafting(foundry, executor, spaceshipType, materials, amounts, biome);
+    _validateModuleCrafting(foundry, executor, moduleType, materials, amounts);
+    _executeCrafting(foundry, executor, moduleType, materials, amounts, biome);
   }
 
-  function _validateSpaceshipCrafting(
+  function _validateModuleCrafting(
     Planet memory foundry,
     address executor,
-    uint8 spaceshipType,
+    uint8 moduleType,
     MaterialType[] memory materials,
     uint256[] memory amounts
   ) internal view {
@@ -65,8 +65,8 @@ contract FoundryCraftingSystem is BaseSystem {
     if (foundry.planetType != PlanetType.FOUNDRY) revert Errors.InvalidPlanetType();
     if (foundry.level < 4) revert Errors.PlanetLevelTooLow();
 
-    // Validate spaceship type
-    if (spaceshipType < 1 || spaceshipType > 4) revert Errors.InvalidSpaceshipType();
+    // Validate module type: 1=Engine, 2=Weapon, 3=Hull, 4=Shield
+    if (moduleType < 1 || moduleType > 4) revert Errors.InvalidModuleType();
 
     // Check crafting limit based on foundry upgrade level
     // Level 0 = 1 craft, Level 1 = 2 crafts, Level 2 = 3 crafts
@@ -76,23 +76,23 @@ contract FoundryCraftingSystem is BaseSystem {
 
     if (craftingData.count >= maxCrafts) revert Errors.FoundryCraftingLimitReached();
 
-    // Validate recipe matches spaceship type and foundry has sufficient materials
-    uint256 craftingMultiplier = _getCraftingMultiplier(craftingData.count);
-    _validateSpaceshipRecipe(foundry, spaceshipType, materials, amounts, craftingMultiplier);
+    // Validate recipe matches module type and foundry has sufficient materials
+    uint256 craftingMultiplier = _getCraftingMMultiplier(craftingData.count);
+    _validateModuleRecipe(foundry, moduleType, materials, amounts, craftingMultiplier);
   }
 
   /**
-   * @notice Validates that materials and amounts match the recipe for the given spaceship type
+   * @notice Validates that materials and amounts match the recipe for the given module type
    *         and that the foundry has sufficient materials (with crafting multiplier applied)
    * @param foundry The foundry planet to check materials against
-   * @param spaceshipType The spaceship type (1=Scout, 2=Fighter, 3=Destroyer, 4=Carrier)
+   * @param moduleType The module type (1=Engine, 2=Weapon, 3=Hull, 4=Shield)
    * @param materials Array of material types provided
    * @param amounts Array of material amounts provided (amounts already include crafting multiplier from client)
    * @param craftingMultiplier The crafting multiplier (100, 150, or 225)
    */
-  function _validateSpaceshipRecipe(
+  function _validateModuleRecipe(
     Planet memory foundry,
-    uint8 spaceshipType,
+    uint8 moduleType,
     MaterialType[] memory materials,
     uint256[] memory amounts,
     uint256 craftingMultiplier
@@ -101,44 +101,44 @@ contract FoundryCraftingSystem is BaseSystem {
     if (materials.length != amounts.length) revert Errors.InvalidMaterialAmount();
     if (materials.length == 0) revert Errors.MissingRequiredMaterials();
 
-    // Get expected recipe for this spaceship type
+    // Get expected recipe for this module type
     MaterialType[] memory expectedMaterials;
     uint256[] memory expectedAmounts;
-    // need to be aligned with client logic for spaceship crafting pane SpaceshipCraftingPane.tsx line 390
-    if (spaceshipType == 1) {
-      // Scout: Windsteel (100) + Aurorium (50)
+    // Recipes aligned with spaceship crafting pattern
+    if (moduleType == 1) {
+      // Engine: Windsteel (80) + Aurorium (40)
       expectedMaterials = new MaterialType[](2);
       expectedMaterials[0] = MaterialType.WINDSTEEL;
       expectedMaterials[1] = MaterialType.AURORIUM;
       expectedAmounts = new uint256[](2);
-      expectedAmounts[0] = 100;
-      expectedAmounts[1] = 50;
-    } else if (spaceshipType == 2) {
-      // Fighter: Pyrosteel (150) + Scrapium (100)
+      expectedAmounts[0] = 80;
+      expectedAmounts[1] = 40;
+    } else if (moduleType == 2) {
+      // Weapon: Pyrosteel (120) + Scrapium (80)
       expectedMaterials = new MaterialType[](2);
       expectedMaterials[0] = MaterialType.PYROSTEEL;
       expectedMaterials[1] = MaterialType.SCRAPIUM;
       expectedAmounts = new uint256[](2);
-      expectedAmounts[0] = 150;
-      expectedAmounts[1] = 100;
-    } else if (spaceshipType == 3) {
-      // Destroyer: Blackalloy (200) + Corrupted Crystal (100)
+      expectedAmounts[0] = 120;
+      expectedAmounts[1] = 80;
+    } else if (moduleType == 3) {
+      // Hull: Blackalloy (160) + Corrupted Crystal (80)
       expectedMaterials = new MaterialType[](2);
       expectedMaterials[0] = MaterialType.BLACKALLOY;
       expectedMaterials[1] = MaterialType.CORRUPTED_CRYSTAL;
       expectedAmounts = new uint256[](2);
-      expectedAmounts[0] = 200;
-      expectedAmounts[1] = 100;
-    } else if (spaceshipType == 4) {
-      // Carrier: Living Wood (200) + Cryostone (150)
+      expectedAmounts[0] = 160;
+      expectedAmounts[1] = 80;
+    } else if (moduleType == 4) {
+      // Shield: Living Wood (160) + Cryostone (120)
       expectedMaterials = new MaterialType[](2);
       expectedMaterials[0] = MaterialType.LIVING_WOOD;
       expectedMaterials[1] = MaterialType.CRYOSTONE;
       expectedAmounts = new uint256[](2);
-      expectedAmounts[0] = 200;
-      expectedAmounts[1] = 150;
+      expectedAmounts[0] = 160;
+      expectedAmounts[1] = 120;
     } else {
-      revert Errors.InvalidSpaceshipType();
+      revert Errors.InvalidModuleType();
     }
 
     // Validate provided materials match expected recipe
@@ -168,7 +168,7 @@ contract FoundryCraftingSystem is BaseSystem {
       // Calculate expected amount with multiplier (what contract would calculate)
       uint256 expectedAmountWithMultiplier = (expectedAmounts[i] * craftingMultiplier) / 100;
       // Client uses Math.ceil() which can round up, so allow +1 tolerance
-      // e.g., (50 * 225) / 100 = 112.5 -> 112 (truncated), but client sends 113 (Math.ceil)
+      // e.g., (40 * 225) / 100 = 90 (truncated), but client sends 91 (Math.ceil)
       uint256 providedAmount = materialAmounts[expectedMatType];
 
       // Allow tolerance of 1 unit difference due to rounding differences
@@ -196,7 +196,7 @@ contract FoundryCraftingSystem is BaseSystem {
   function _executeCrafting(
     Planet memory foundry,
     address executor,
-    uint8 spaceshipType,
+    uint8 moduleType,
     MaterialType[] memory materials,
     uint256[] memory amounts,
     Biome biome
@@ -216,7 +216,7 @@ contract FoundryCraftingSystem is BaseSystem {
     FoundryCraftingCountData memory craftingData = FoundryCraftingCount.get(bytes32(foundry.planetHash));
 
     // Calculate rarity based on planet level (same as NewArtifact)
-    ArtifactRarity rarity = _calculateSpaceshipRarity(
+    ArtifactRarity rarity = _calculateModuleRarity(
       foundry.level,
       uint256(keccak256(abi.encodePacked(block.timestamp, executor, foundry.planetHash)))
     );
@@ -230,41 +230,31 @@ contract FoundryCraftingSystem is BaseSystem {
       biome = calculatedBiome;
     }
 
-    // Create spaceship artifact
-    Artifact memory spaceshipArtifact = ArtifactLib.NewSpaceshipArtifact(
+    // Create module artifact
+    Artifact memory moduleArtifact = ArtifactLib.NewModuleArtifact(
       uint256(keccak256(abi.encodePacked(block.timestamp, executor, foundry.planetHash))),
       foundry.planetHash,
-      spaceshipType,
+      moduleType,
       biome,
       rarity
     );
 
-    // Calculate bonuses and store spaceship data
+    // Calculate bonuses and store module data
+    uint32 artifactId = uint32(moduleArtifact.id);
+    CraftedModules.setModuleType(artifactId, moduleType);
+    CraftedModules.setBiome(artifactId, biome);
+    CraftedModules.setRarity(artifactId, rarity);
+    CraftedModules.setCraftedAt(artifactId, uint64(block.timestamp));
+    CraftedModules.setCrafter(artifactId, executor);
 
-    uint32 artifactId = uint32(spaceshipArtifact.id);
-    // todo find how to use CraftedSpaceship.set instead step by step setSpaceShip setBiome setRarity setCraftedAt setNftTokenId setCrafter etc
-    //  CraftedSpaceship.set(artifactId, spaceshipType, biome, rarity, uint64(block.timestamp), 0, executor);
-    CraftedSpaceship.setSpaceshipType(artifactId, spaceshipType);
-    CraftedSpaceship.setBiome(artifactId, biome);
-    CraftedSpaceship.setRarity(artifactId, rarity);
-    CraftedSpaceship.setCraftedAt(artifactId, uint64(block.timestamp));
-    CraftedSpaceship.setNftTokenId(artifactId, 0); // Will be set after NFT minting
-    CraftedSpaceship.setCrafter(artifactId, executor);
-    // todo find how to use SpaceshipBonus.set instead step by step setAttackBonus setDefenseBonus setSpeedBonus setRangeBonus etc
-    //    SpaceshipBonus.set(artifactId, _calculateAttackBonus(config.baseAttack, biome, rarity), _calculateDefenseBonus(config.baseDefense, biome, rarity), _calculateSpeedBonus(config.baseSpeed, biome, rarity), _calculateRangeBonus(config.baseRange, biome, rarity));
-    SpaceshipBonus.setAttackBonus(artifactId, _calculateAttackBonus(biome, rarity, spaceshipType));
-    SpaceshipBonus.setDefenseBonus(artifactId, _calculateDefenseBonus(biome, rarity, spaceshipType));
-    SpaceshipBonus.setSpeedBonus(artifactId, _calculateSpeedBonus(biome, rarity, spaceshipType));
-    SpaceshipBonus.setRangeBonus(artifactId, _calculateRangeBonus(biome, rarity, spaceshipType));
-
-    // TODO: Mint ArtifactNFT and update spaceship data
-    // For now, we'll skip NFT minting to avoid deployment issues
-    // uint256 tokenId = _mintSpaceshipNFT(executor, spaceshipArtifact.id, spaceshipType, biome, rarity);
-    // CraftedSpaceship.setNftTokenId(spaceshipType, biome, rarity, tokenId);
+    ModuleBonus.setAttackBonus(artifactId, _calculateAttackBonus(biome, rarity, moduleType));
+    ModuleBonus.setDefenseBonus(artifactId, _calculateDefenseBonus(biome, rarity, moduleType));
+    ModuleBonus.setSpeedBonus(artifactId, _calculateSpeedBonus(biome, rarity, moduleType));
+    ModuleBonus.setRangeBonus(artifactId, _calculateRangeBonus(biome, rarity, moduleType));
 
     // Store artifact and add to planet
-    spaceshipArtifact.writeToStore();
-    foundry.pushArtifact(spaceshipArtifact.id);
+    moduleArtifact.writeToStore();
+    foundry.pushArtifact(moduleArtifact.id);
     foundry.writeToStore();
 
     // Increment crafting count for this foundry
@@ -274,40 +264,10 @@ contract FoundryCraftingSystem is BaseSystem {
     );
 
     // Update counter
-    Counter.setArtifact(uint24(spaceshipArtifact.id));
+    Counter.setArtifact(uint24(moduleArtifact.id));
   }
 
-  // TODO: Re-enable NFT minting once ArtifactNFT is properly deployed
-  function _mintSpaceshipNFT(
-    address to,
-    uint256 spaceshipId,
-    uint8 spaceshipType,
-    Biome biome,
-    ArtifactRarity rarity
-  ) internal returns (uint256) {
-    uint256 tokenId = _generateSpaceshipTokenId(spaceshipId, spaceshipType);
-
-    // TODO: Get ArtifactNFT from world contract and mint
-    // artifactNFT.mint(
-    //     to,
-    //     tokenId,
-    //     3, // artifactType = Spaceship (original Dark Forest ID)
-    //     uint8(rarity),
-    //     uint8(biome)
-    // );
-
-    return tokenId;
-  }
-
-  function _generateSpaceshipTokenId(uint256 spaceshipId, uint8 spaceshipType) internal view returns (uint256) {
-    // Format: [Round(8 bits)][SpaceshipType(8 bits)][UniqueID(16 bits)][Timestamp(32 bits)]
-    uint256 round = uint256(keccak256(abi.encodePacked(block.timestamp))) % 256;
-    uint256 timestamp = block.timestamp;
-
-    return (round << 248) | (uint256(spaceshipType) << 240) | (spaceshipId << 224) | timestamp;
-  }
-
-  function _calculateSpaceshipRarity(uint256 planetLevel, uint256 seed) internal pure returns (ArtifactRarity) {
+  function _calculateModuleRarity(uint256 planetLevel, uint256 seed) internal pure returns (ArtifactRarity) {
     // Use the same rarity calculation as NewArtifact._initRarity
     uint256 lvlBonusSeed = seed & 0xfff000;
     if (lvlBonusSeed < 0x40000) {
@@ -331,13 +291,23 @@ contract FoundryCraftingSystem is BaseSystem {
     }
   }
 
-  function _calculateAttackBonus(
-    Biome biome,
-    ArtifactRarity rarity,
-    uint8 spaceshipType
-  ) internal pure returns (uint16) {
+  function _calculateAttackBonus(Biome biome, ArtifactRarity rarity, uint8 moduleType) internal pure returns (uint16) {
     uint16 biomeBonus = _getBiomeBonus(biome);
-    uint16 roleBonus = _getSpaceshipRoleAttackBonus(spaceshipType);
+    uint16 roleBonus = _getModuleRoleAttackBonus(moduleType);
+    uint16 rarityMultiplier = _getRarityMultiplier(rarity);
+
+    // If role bonus is 0, then no biome bonus is added
+    if (roleBonus == 0) {
+      return 0;
+    }
+
+    uint16 totalBonus = biomeBonus + roleBonus;
+    return ((totalBonus * rarityMultiplier) / 400);
+  }
+
+  function _calculateDefenseBonus(Biome biome, ArtifactRarity rarity, uint8 moduleType) internal pure returns (uint16) {
+    uint16 biomeBonus = _getBiomeBonus(biome);
+    uint16 roleBonus = _getModuleRoleDefenseBonus(moduleType);
     uint16 rarityMultiplier = _getRarityMultiplier(rarity);
 
     // If role bonus is 0, then no biome bonus is added
@@ -349,13 +319,9 @@ contract FoundryCraftingSystem is BaseSystem {
     return ((totalBonus * rarityMultiplier) / 100);
   }
 
-  function _calculateDefenseBonus(
-    Biome biome,
-    ArtifactRarity rarity,
-    uint8 spaceshipType
-  ) internal pure returns (uint16) {
+  function _calculateSpeedBonus(Biome biome, ArtifactRarity rarity, uint8 moduleType) internal pure returns (uint16) {
     uint16 biomeBonus = _getBiomeBonus(biome);
-    uint16 roleBonus = _getSpaceshipRoleDefenseBonus(spaceshipType);
+    uint16 roleBonus = _getModuleRoleSpeedBonus(moduleType);
     uint16 rarityMultiplier = _getRarityMultiplier(rarity);
 
     // If role bonus is 0, then no biome bonus is added
@@ -367,31 +333,9 @@ contract FoundryCraftingSystem is BaseSystem {
     return ((totalBonus * rarityMultiplier) / 100);
   }
 
-  function _calculateSpeedBonus(
-    Biome biome,
-    ArtifactRarity rarity,
-    uint8 spaceshipType
-  ) internal pure returns (uint16) {
+  function _calculateRangeBonus(Biome biome, ArtifactRarity rarity, uint8 moduleType) internal pure returns (uint16) {
     uint16 biomeBonus = _getBiomeBonus(biome);
-    uint16 roleBonus = _getSpaceshipRoleSpeedBonus(spaceshipType);
-    uint16 rarityMultiplier = _getRarityMultiplier(rarity);
-
-    // If role bonus is 0, then no biome bonus is added
-    if (roleBonus == 0) {
-      return 0;
-    }
-
-    uint16 totalBonus = biomeBonus + roleBonus;
-    return ((totalBonus * rarityMultiplier) / 100);
-  }
-
-  function _calculateRangeBonus(
-    Biome biome,
-    ArtifactRarity rarity,
-    uint8 spaceshipType
-  ) internal pure returns (uint16) {
-    uint16 biomeBonus = _getBiomeBonus(biome);
-    uint16 roleBonus = _getSpaceshipRoleRangeBonus(spaceshipType);
+    uint16 roleBonus = _getModuleRoleRangeBonus(moduleType);
     uint16 rarityMultiplier = _getRarityMultiplier(rarity);
 
     // If role bonus is 0, then no biome bonus is added
@@ -426,44 +370,44 @@ contract FoundryCraftingSystem is BaseSystem {
     return 0;
   }
 
-  // Spaceship role-specific bonus functions
-  function _getSpaceshipRoleAttackBonus(uint8 spaceshipType) internal pure returns (uint16) {
-    // Scout: 0, Fighter: 5, Destroyer: 10, Carrier: 5
-    if (spaceshipType == 1) return 0; // Scout - no attack bonus
-    if (spaceshipType == 2) return 5; // Fighter
-    if (spaceshipType == 3) return 10; // Destroyer
-    if (spaceshipType == 4) return 5; // Carrier
+  // Module role-specific bonus functions
+  function _getModuleRoleAttackBonus(uint8 moduleType) internal pure returns (uint16) {
+    // Engine: 0, Weapon: 8, Hull: 0, Shield: 0
+    if (moduleType == 1) return 0; // Engine - no attack bonus
+    if (moduleType == 2) return 8; // Weapon - high attack bonus
+    if (moduleType == 3) return 0; // Hull - no attack bonus
+    if (moduleType == 4) return 0; // Shield - no attack bonus
     return 0;
   }
 
-  function _getSpaceshipRoleDefenseBonus(uint8 spaceshipType) internal pure returns (uint16) {
-    // Scout: 0, Fighter: 5, Destroyer: 10, Carrier: 15
-    if (spaceshipType == 1) return 0; // Scout
-    if (spaceshipType == 2) return 5; // Fighter
-    if (spaceshipType == 3) return 10; // Destroyer
-    if (spaceshipType == 4) return 15; // Carrier
+  function _getModuleRoleDefenseBonus(uint8 moduleType) internal pure returns (uint16) {
+    // Engine: 0, Weapon: 0, Hull: 8, Shield: 10
+    if (moduleType == 1) return 0; // Engine
+    if (moduleType == 2) return 0; // Weapon
+    if (moduleType == 3) return 8; // Hull - high defense bonus
+    if (moduleType == 4) return 10; // Shield - highest defense bonus
     return 0;
   }
 
-  function _getSpaceshipRoleSpeedBonus(uint8 spaceshipType) internal pure returns (uint16) {
-    // Scout: 10, Fighter: 0, Destroyer: 0, Carrier: 0
-    if (spaceshipType == 1) return 10; // Scout
-    if (spaceshipType == 2) return 0; // Fighter
-    if (spaceshipType == 3) return 0; // Destroyer
-    if (spaceshipType == 4) return 0; // Carrier
+  function _getModuleRoleSpeedBonus(uint8 moduleType) internal pure returns (uint16) {
+    // Engine: 8, Weapon: 0, Hull: 0, Shield: 0
+    if (moduleType == 1) return 8; // Engine - high speed bonus
+    if (moduleType == 2) return 0; // Weapon
+    if (moduleType == 3) return 0; // Hull
+    if (moduleType == 4) return 0; // Shield
     return 0;
   }
 
-  function _getSpaceshipRoleRangeBonus(uint8 spaceshipType) internal pure returns (uint16) {
-    // Scout: 5, Fighter: 5, Destroyer: 0, Carrier: 3
-    if (spaceshipType == 1) return 5; // Scout
-    if (spaceshipType == 2) return 5; // Fighter
-    if (spaceshipType == 3) return 0; // Destroyer - no range bonus
-    if (spaceshipType == 4) return 3; // Carrier
+  function _getModuleRoleRangeBonus(uint8 moduleType) internal pure returns (uint16) {
+    // Engine: 3, Weapon: 5, Hull: 0, Shield: 0
+    if (moduleType == 1) return 3; // Engine - moderate range bonus
+    if (moduleType == 2) return 5; // Weapon - high range bonus
+    if (moduleType == 3) return 0; // Hull - no range bonus
+    if (moduleType == 4) return 0; // Shield - no range bonus
     return 0;
   }
 
-  function _getCraftingMultiplier(uint8 craftingCount) internal pure returns (uint256) {
+  function _getCraftingMMultiplier(uint8 craftingCount) internal pure returns (uint256) {
     // 1st craft: 100% (1.0x), 2nd craft: 150% (1.5x), 3rd craft: 225% (2.25x)
     if (craftingCount == 0) return 100;
     if (craftingCount == 1) return 150;
@@ -472,15 +416,15 @@ contract FoundryCraftingSystem is BaseSystem {
   }
 
   // Public function to get crafting count for a foundry
-  function getFoundryCraftingCount(uint256 foundryHash) public view returns (uint8 count, uint64 lastCraftTime) {
+  function getFoundryMCraftingCount(uint256 foundryHash) public view returns (uint8 count, uint64 lastCraftTime) {
     FoundryCraftingCountData memory data = FoundryCraftingCount.get(bytes32(foundryHash));
     return (data.count, data.lastCraftTime);
   }
 
   // Public function to get crafting multiplier for a foundry
-  function getCraftingMultiplier(uint256 foundryHash) public view returns (uint256 multiplier) {
+  function getCraftingMMultiplier(uint256 foundryHash) public view returns (uint256 multiplier) {
     FoundryCraftingCountData memory data = FoundryCraftingCount.get(bytes32(foundryHash));
-    return _getCraftingMultiplier(data.count);
+    return _getCraftingMMultiplier(data.count);
   }
 
   /**

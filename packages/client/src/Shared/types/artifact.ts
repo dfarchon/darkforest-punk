@@ -41,6 +41,7 @@ export const ArtifactType = {
   ShipGear: 20 as ArtifactType,
   ShipTitan: 21 as ArtifactType,
   ShipPink: 22 as ArtifactType,
+  SpaceshipModule: 23 as ArtifactType,
 
   // Don't forget to update MIN_ARTIFACT_TYPE and/or MAX_ARTIFACT_TYPE in the `constants` package
 } as const;
@@ -70,6 +71,30 @@ export const SpaceshipTypeNames = {
 } as const;
 
 /**
+ * Module types for crafted modules
+ */
+export type ModuleType = Abstract<number, "ModuleType">;
+
+export const ModuleType = {
+  Unknown: 0 as ModuleType,
+  Engine: 1 as ModuleType,
+  Weapon: 2 as ModuleType,
+  Hull: 3 as ModuleType,
+  Shield: 4 as ModuleType,
+} as const;
+
+/**
+ * Mapping from ModuleType to pretty-printed names.
+ */
+export const ModuleTypeNames = {
+  [ModuleType.Unknown]: "Unknown",
+  [ModuleType.Engine]: "Engine",
+  [ModuleType.Weapon]: "Weapon",
+  [ModuleType.Hull]: "Hull",
+  [ModuleType.Shield]: "Shield",
+} as const;
+
+/**
  * Mapping from ArtifactType to pretty-printed names.
  */
 export const ArtifactTypeNames = {
@@ -96,7 +121,41 @@ export const ArtifactTypeNames = {
   [ArtifactType.ShipGear]: "Gear",
   [ArtifactType.ShipTitan]: "Titan",
   [ArtifactType.ShipPink]: "Pinkship",
+  [ArtifactType.SpaceshipModule]: "Module",
 } as const;
+
+/**
+ * Gets the display name for an artifact, using SpaceshipTypeNames for spaceships (type 3)
+ * and ModuleTypeNames for modules (type 23) when available.
+ * @param artifact The artifact to get the name for
+ * @returns The display name string
+ */
+export function getArtifactTypeName(artifact: Artifact): string {
+  // For spaceships (type 3), use SpaceshipTypeNames if spaceshipType is available
+  if (
+    artifact.artifactType === ArtifactType.Spaceship &&
+    artifact.spaceshipType !== undefined
+  ) {
+    return (
+      SpaceshipTypeNames[artifact.spaceshipType] ||
+      ArtifactTypeNames[ArtifactType.Spaceship]
+    );
+  }
+
+  // For modules (type 23), use ModuleTypeNames if moduleType is available
+  if (
+    artifact.artifactType === ArtifactType.SpaceshipModule &&
+    artifact.moduleType !== undefined
+  ) {
+    return (
+      ModuleTypeNames[artifact.moduleType] ||
+      ArtifactTypeNames[ArtifactType.SpaceshipModule]
+    );
+  }
+
+  // For all other types, use ArtifactTypeNames
+  return ArtifactTypeNames[artifact.artifactType] || "Unknown";
+}
 
 /**
  * Abstract type representing an artifact rarity level.
@@ -245,6 +304,9 @@ export type Artifact = {
   crafter?: EthAddress;
   craftedAt?: number;
   nftTokenId?: number;
+
+  // Module-specific properties
+  moduleType?: ModuleType;
 };
 
 // TODO: get this out of here

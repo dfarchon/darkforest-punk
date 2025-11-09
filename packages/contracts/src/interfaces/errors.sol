@@ -30,6 +30,9 @@ interface Errors {
   error ReachMaxMoveToLimit(uint8 limit); // 0x0edddad6
   error ArtifactStorageFull(); // 0xb3643b72
   error ArtifactNotOnPlanet(); // 0x37a29a4e
+  error ArtifactNotOnPlanet1(); // 0x24829c16
+  error ArtifactNotOnPlanet2(); // 0x24807129
+  error ArtifactNotOnPlanet3(); // 0x10e7a156
   error PlanetOwnershipMismatch(); //0xb43ec652
   error NotEnoughMaterial(); // 0x7b8217de
   error MoveNotFound(); // 0xf61e54c1
@@ -78,12 +81,22 @@ interface Errors {
   error ArtifactWithdrawalDisabled(); // 0xed2ec822
   error FoundryCraftingLimitReached(); // 0x8396eb65
   error InvalidSpaceshipType(); // 0x51f065d2
+  error InvalidModuleType(); // 0x2125deae
+  error CannotMoveModule(); // 0xbaa0d48e
   error InvalidMaterialAmount(); // 0xea7eae74
   error InvalidMaterialType(); // 0x69593a26
   error MissingRequiredMaterials(); // 0xe5774581
   error NotEnoughMaterial1(); // 0x53841e48
   error InsufficientFoundryUpgradeFee(uint256 required, uint256 provided); // 0x85c21108
   error FoundryAtMaxUpgradeLevel(); // 0x8c8d77a4
+
+  // spaceship module system
+  error InvalidSpaceshipArtifact(); // 0xcac78c2c
+  error InvalidModuleArtifact(); // 0x5c033a44
+  error ModuleAlreadyInstalled(); // 0x24c377e2
+  error ModuleSlotFull(); // 0xec84b67a
+  error ModuleNotInstalled(); // 0x2a6f7929
+
   // planet withdraw silver system
   error InvalidPlanetType(); // 0xcfb7f825
   error InsufficientSilverOnPlanet(); // 0xfe845fce

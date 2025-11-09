@@ -69,6 +69,18 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     [SpaceshipType.Carrier]: "/sprites/Cruisers.png", // Using Cruisers.png for Carrier
   } as const;
 
+  // Custom module sprite management
+  private moduleImages: Map<number, HTMLImageElement> = new Map();
+  private moduleSpritesLoaded: boolean = false;
+
+  // Custom module sprite URLs
+  private static readonly MODULE_SPRITES = {
+    1: "/sprites/modules/Engines.png", // Engine
+    2: "/sprites/modules/1Cannon.png", // Weapon
+    3: "/sprites/modules/Hull.png", // Hull
+    4: "/sprites/modules/Shield.png", // Shield
+  } as const;
+
   HTMLImages: Record<number, HTMLImageElement> = {};
   private static components: ClientComponents | null = null;
 
@@ -76,6 +88,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     this.renderer = gl.renderer;
     this.loadHTMLImages();
     this.loadSpaceshipSprites();
+    this.loadModuleSprites();
     // this.loadNewHats();
   }
 
@@ -169,6 +182,28 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       };
       img.onerror = () => {
         console.warn(`Failed to load spaceship sprite: ${spriteUrl}`);
+      };
+    }
+  }
+
+  loadModuleSprites(): void {
+    for (const [moduleType, spriteUrl] of Object.entries(
+      PlanetRenderManager.MODULE_SPRITES,
+    )) {
+      const img = new Image();
+      img.src = spriteUrl;
+      img.onload = () => {
+        this.moduleImages.set(Number(moduleType), img);
+        // Check if all sprites are loaded
+        if (
+          this.moduleImages.size ===
+          Object.keys(PlanetRenderManager.MODULE_SPRITES).length
+        ) {
+          this.moduleSpritesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load module sprite: ${spriteUrl}`);
       };
     }
   }
@@ -445,6 +480,14 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
           artifactSize,
           alpha,
         );
+      } else if (artifacts[i].artifactType === ArtifactType.SpaceshipModule) {
+        // Handle custom module sprites using HTML images
+        this.queueCustomModuleSprite(
+          artifacts[i],
+          { x, y },
+          artifactSize,
+          alpha,
+        );
       } else if (artifacts[i].artifactType !== ArtifactType.Avatar) {
         this.renderer.spriteRenderer.queueArtifactWorld(
           artifacts[i],
@@ -559,6 +602,101 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       64, // sprite width
       64, // sprite height
       rotation, // rotation in radians
+      artifact.rarity, // artifact rarity for effects
+      alpha, // alpha value for transparency
+    );
+  }
+
+  public queueCustomModuleSprite(
+    artifact: Artifact,
+    centerW: WorldCoords,
+    radiusW: number,
+    alpha: number,
+    _fromCoords?: WorldCoords,
+    _toCoords?: WorldCoords,
+  ) {
+    if (!this.moduleSpritesLoaded) {
+      // Fallback to default sprite renderer
+      this.renderer.spriteRenderer.queueArtifactWorld(
+        artifact,
+        centerW,
+        radiusW,
+        alpha,
+        undefined,
+        undefined,
+        undefined,
+        this.renderer.getViewport(),
+      );
+      return;
+    }
+
+    // Get module type from CraftedModules MUD table
+    let moduleType: number | undefined;
+
+    // First, try to use the moduleType from the artifact object (set by ArtifactUtils)
+    if (artifact.moduleType !== undefined) {
+      moduleType = artifact.moduleType;
+    } else {
+      // Fallback: lookup from MUD table
+      const components = this.getComponents();
+      if (components) {
+        // Use the same approach as useCraftedModule - direct map access
+        const artifactId = Number(artifact.id);
+        const moduleTypeMap = components.CraftedModules?.values?.moduleType;
+
+        if (moduleTypeMap) {
+          // Find the correct key by iterating through all keys
+          for (const [key, value] of moduleTypeMap.entries()) {
+            const keyString = key.toString();
+            if (keyString.includes(artifactId.toString())) {
+              moduleType = value as number;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: If no CraftedModules data exists, use default module type
+    if (!moduleType || moduleType < 1 || moduleType > 4) {
+      moduleType = 1; // Default to Engine
+    }
+    const moduleImage = this.moduleImages.get(moduleType);
+    if (!moduleImage) {
+      // Fallback to default sprite renderer
+      this.renderer.spriteRenderer.queueArtifactWorld(
+        artifact,
+        centerW,
+        radiusW,
+        alpha,
+        undefined,
+        undefined,
+        undefined,
+        this.renderer.getViewport(),
+      );
+      return;
+    }
+
+    // Modules don't rotate like spaceships, so rotation is always 0
+    const rotation = 0;
+
+    // Modules are single images, not sprite sheets - use full image dimensions
+    const imageWidth = moduleImage.width || 64;
+    const imageHeight = moduleImage.height || 64;
+
+    // Use HTML image renderer with full image (no sprite sheet clipping) and rarity effects
+    this.renderer.overlay2dRenderer.drawHTMLImageWithRarityEffects(
+      moduleImage,
+      centerW,
+      radiusW,
+      radiusW,
+      radiusW,
+      false,
+      0, // x offset (0 for single image, not sprite sheet)
+      0, // y offset (0 for single image)
+      imageWidth, // full image width
+      imageHeight, // full image height
+      rotation, // rotation in radians (0 for modules)
       artifact.rarity, // artifact rarity for effects
       alpha, // alpha value for transparency
     );

@@ -1,7 +1,7 @@
 import { isSpaceShip } from "@df/gamelogic";
 import { artifactName, getPlanetName } from "@df/procedural";
 import type { Artifact, LocationId } from "@df/types";
-import { ArtifactTypeNames } from "@df/types";
+import { ArtifactTypeNames, getArtifactTypeName } from "@df/types";
 import React from "react";
 import styled from "styled-components";
 
@@ -90,7 +90,7 @@ export function ArtifactsList({
       <Sub>
         <Truncate maxWidth="75px">
           <span onClick={() => handleSelectCompseArtifact?.(artifact)}>
-            {ArtifactTypeNames[artifact.artifactType]}
+            {getArtifactTypeName(artifact)}
           </span>
         </Truncate>
       </Sub>
@@ -108,9 +108,7 @@ export function ArtifactsList({
         planetArtifactName(right, uiManager) || "",
       ) || 0,
     (left: Artifact, right: Artifact) =>
-      ArtifactTypeNames[left.artifactType]?.localeCompare(
-        ArtifactTypeNames[right.artifactType] || "",
-      ) || 0,
+      getArtifactTypeName(left).localeCompare(getArtifactTypeName(right)),
     (left: Artifact, right: Artifact) => left.rarity - right.rarity,
   ];
 
@@ -178,9 +176,7 @@ export function ShipList({
     },
     (artifact: Artifact) => (
       <Sub>
-        <Truncate maxWidth="75px">
-          {ArtifactTypeNames[artifact.artifactType]}
-        </Truncate>
+        <Truncate maxWidth="75px">{getArtifactTypeName(artifact)}</Truncate>
       </Sub>
     ),
   ];
@@ -193,9 +189,7 @@ export function ShipList({
         planetArtifactName(right, uiManager) || "",
       ) || 0,
     (left: Artifact, right: Artifact) =>
-      ArtifactTypeNames[left.artifactType]?.localeCompare(
-        ArtifactTypeNames[right.artifactType] || "",
-      ) || 0,
+      getArtifactTypeName(left).localeCompare(getArtifactTypeName(right)),
   ];
 
   if (shipArtifacts.length === 0) {

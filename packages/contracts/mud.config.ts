@@ -93,6 +93,12 @@ export default defineWorld({
     FoundryCraftingSystem: {
       openAccess: false,
     },
+    ModuleCraftingSystem: {
+      openAccess: false,
+    },
+    SpaceshipModuleSystem: {
+      openAccess: false,
+    },
     FoundryUpgradeSystem: {
       openAccess: false,
     },
@@ -538,7 +544,45 @@ export default defineWorld({
       },
       key: ["artifactId"],
     },
-
+    SpaceshipModuleInstalled: {
+      schema: {
+        moduleId: "uint32",
+        artifactId: "uint32",
+        moduleSlotType: "uint8", // 1 = ENGINES, 2 = WEAPONS, 3 = HULL, 4 = SHIELD
+        installed: "bool",
+      },
+      key: ["moduleId"],
+    },
+    SpaceshipSlot: {
+      schema: {
+        artifactId: "uint32",
+        moduleSlotindex: "uint8", // 1 = ENGINES, 2 = WEAPONS, 3 = HULL_SHIELD
+        moduleSlotType: "uint8", // 1 = ENGINES, 2 = WEAPONS, 3 = HULL, 4 = SHIELD
+        moduleId: "uint32",
+      },
+      key: ["artifactId", "moduleSlotindex"],
+    },
+    CraftedModules: {
+      schema: {
+        artifactId: "uint32",
+        moduleType: "uint8",
+        biome: "Biome",
+        rarity: "ArtifactRarity",
+        craftedAt: "uint64",
+        crafter: "address",
+      },
+      key: ["artifactId"],
+    },
+    ModuleBonus: {
+      schema: {
+        artifactId: "uint32",
+        attackBonus: "uint16",
+        defenseBonus: "uint16",
+        speedBonus: "uint16",
+        rangeBonus: "uint16",
+      },
+      key: ["artifactId"],
+    },
     MaterialUpgradeConfig: {
       schema: {
         upgradeType: "uint8",

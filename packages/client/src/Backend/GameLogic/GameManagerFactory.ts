@@ -38,6 +38,7 @@ import {
   isUnconfirmedDonateTx,
   isUnconfirmedFindArtifactTx,
   isUnconfirmedInitTx,
+  isUnconfirmedInstallModuleTx,
   isUnconfirmedInvadePlanetTx,
   isUnconfirmedInviteToGuildTx,
   isUnconfirmedKardashevTx,
@@ -45,6 +46,7 @@ import {
   isUnconfirmedLeaveGuildTx,
   isUnconfirmedMoveTx,
   isUnconfirmedPinkTx,
+  isUnconfirmedUninstallModuleTx,
   isUnconfirmedProspectPlanetTx,
   isUnconfirmedRefreshPlanetTx,
   isUnconfirmedRevealTx,
@@ -475,6 +477,36 @@ export class GameManagerFactory {
           ]);
         } else if (isUnconfirmedProspectPlanetTx(tx)) {
           await gameManager.softRefreshPlanet(tx.intent.planetId);
+        } else if (isUnconfirmedInstallModuleTx(tx)) {
+          // Wait a bit for MUD components to sync after transaction confirmation
+          // SpaceshipBonus table is updated in the contract, so we need to wait
+          // for the store sync to complete before refreshing
+          await delay(500);
+          await gameManager.hardRefreshPlanet(tx.intent.planetHash);
+          gameManager.hardRefreshArtifact(tx.intent.spaceshipId);
+          gameManager.hardRefreshArtifact(tx.intent.moduleId);
+          // Emit events to trigger UI refresh
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
+          gameManager.emit(
+            GameManagerEvent.ArtifactUpdate,
+            tx.intent.spaceshipId,
+          );
+          gameManager.emit(GameManagerEvent.ArtifactUpdate, tx.intent.moduleId);
+        } else if (isUnconfirmedUninstallModuleTx(tx)) {
+          // Wait a bit for MUD components to sync after transaction confirmation
+          // SpaceshipBonus table is updated in the contract, so we need to wait
+          // for the store sync to complete before refreshing
+          await delay(500);
+          await gameManager.hardRefreshPlanet(tx.intent.planetHash);
+          gameManager.hardRefreshArtifact(tx.intent.spaceshipId);
+          gameManager.hardRefreshArtifact(tx.intent.moduleId);
+          // Emit events to trigger UI refresh
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
+          gameManager.emit(
+            GameManagerEvent.ArtifactUpdate,
+            tx.intent.spaceshipId,
+          );
+          gameManager.emit(GameManagerEvent.ArtifactUpdate, tx.intent.moduleId);
         } else if (
           isUnconfirmedChargeArtifactTx(tx) ||
           isUnconfirmedActivateArtifactTx(tx) ||

@@ -51,6 +51,7 @@ export class ArtifactUtils {
       WormholeMetadata,
       CannonMetadata,
       CraftedSpaceship,
+      CraftedModules,
     } = this.components;
 
     const artifactEntity = encodeEntity(Artifact.metadata.keySchema, {
@@ -116,7 +117,11 @@ export class ArtifactUtils {
       );
     }
 
-    if (!metadata && artifactRec.artifactIndex !== 3) {
+    if (
+      !metadata &&
+      artifactRec.artifactIndex !== 3 &&
+      artifactRec.artifactIndex !== 23
+    ) {
       throw new Error(
         `artifact metadata not found, artifact index: ${artifactRec.artifactIndex}, rarity: ${artifactRec.rarity}`,
       );
@@ -144,6 +149,21 @@ export class ArtifactUtils {
       }
     }
 
+    let moduleType: number | undefined;
+    if (artifactRec.artifactIndex === 23) {
+      const craftedModuleEntity = encodeEntity(
+        CraftedModules.metadata.keySchema,
+        { artifactId: Number(artifactIdToDecStr(artifactId)) },
+      );
+      const craftedModuleData = getComponentValue(
+        CraftedModules,
+        craftedModuleEntity,
+      );
+      if (craftedModuleData) {
+        moduleType = craftedModuleData.moduleType;
+      }
+    }
+
     return {
       isInititalized: true,
       imageType: 0,
@@ -162,20 +182,21 @@ export class ArtifactUtils {
       onPlanetId: planetId === "0" ? undefined : planetId,
       artifactIndex: artifactRec.artifactIndex,
       status: artifactRec.status as ArtifactStatus,
-      genre: metadata.genre as ArtifactGenre,
+      genre: metadata?.genre as ArtifactGenre,
       chargeTick: Number(artifactRec.chargeTick),
       activateTick: Number(artifactRec.activateTick),
       cooldownTick: Number(artifactRec.cooldownTick),
-      charge: metadata.charge,
-      cooldown: metadata.cooldown,
-      durable: metadata.durable,
-      reusable: metadata.reusable,
-      reqLevel: metadata.reqLevel,
-      reqPopulation: metadata.reqPopulation,
-      reqSilver: metadata.reqSilver,
+      charge: metadata?.charge,
+      cooldown: metadata?.cooldown,
+      durable: metadata?.durable,
+      reusable: metadata?.reusable,
+      reqLevel: metadata?.reqLevel,
+      reqPopulation: metadata?.reqPopulation,
+      reqSilver: metadata?.reqSilver,
       chargeUpgrade,
       activateUpgrade,
-      spaceshipType: spaceshipType, // Add spaceship type from CraftedSpaceship table
+      spaceshipType: spaceshipType as SpaceshipType,
+      moduleType: moduleType as ModuleType,
       transactions: new TxCollection(),
     };
   }
@@ -289,6 +310,8 @@ export class ArtifactUtils {
       return ArtifactType.Wormhole;
     } else if (index === 6) {
       return ArtifactType.PhotoidCannon;
+    } else if (index === 23) {
+      return ArtifactType.SpaceshipModule; // Module artifacts
     }
     return ArtifactType.Unknown;
   }

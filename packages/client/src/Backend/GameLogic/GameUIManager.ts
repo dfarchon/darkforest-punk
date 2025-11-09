@@ -617,6 +617,23 @@ export class GameUIManager extends EventEmitter {
     );
   }
 
+  public craftModule(
+    foundryHash: LocationId,
+    moduleType: number,
+    materials: MaterialType[],
+    amounts: number[],
+    biome: Biome,
+  ) {
+    this.playClickSound();
+    this.gameManager.craftModule(
+      foundryHash,
+      moduleType,
+      materials,
+      amounts,
+      biome,
+    );
+  }
+
   public revertMove(
     moveId: string,
     toPlanetHash: LocationId,

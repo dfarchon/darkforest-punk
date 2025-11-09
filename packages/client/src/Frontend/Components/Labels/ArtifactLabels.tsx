@@ -15,6 +15,7 @@ import {
   ArtifactTypeNames,
   AvatarTypeNames,
   BiomeNames,
+  getArtifactTypeName,
   LogoType,
   LogoTypeNames,
   MemeTypeNames,
@@ -53,7 +54,7 @@ export const ArtifactTypeText = ({ artifact }: { artifact: Artifact }) => {
 
   return (
     <>
-      {ArtifactTypeNames[artifact.artifactType]}
+      {getArtifactTypeName(artifact)}
       {artifact.artifactType === ArtifactType.Avatar && ":" + content}
     </>
   );
@@ -77,14 +78,16 @@ export const ArtifactRarityLabelAnim = ({
   rarity,
 }: {
   rarity: ArtifactRarity;
-}) =>
-  rarity === ArtifactRarity.Mythic ? (
-    <MythicLabel />
-  ) : rarity === ArtifactRarity.Legendary ? (
-    <LegendaryLabel />
-  ) : (
-    <ArtifactRarityLabel rarity={rarity} />
-  );
+}) => {
+  switch (rarity) {
+    case ArtifactRarity.Mythic:
+      return <MythicLabel />;
+    case ArtifactRarity.Legendary:
+      return <LegendaryLabel />;
+    default:
+      return <ArtifactRarityLabel rarity={rarity} />;
+  }
+};
 
 // combined labels
 

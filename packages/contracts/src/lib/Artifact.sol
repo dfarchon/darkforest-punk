@@ -33,6 +33,7 @@ library ArtifactStorageLib {
     uint256 artifacts = PlanetArtifact.get(bytes32(_planet));
     _s.planetHash = _planet;
     _s.artifacts = artifacts;
+    _s.inArtifacts = artifacts; // Initialize inArtifacts from existing artifacts
     _s.number = MAX_ARTIFACTS_PER_PLANET;
     for (uint256 i; i < MAX_ARTIFACTS_PER_PLANET; ) {
       uint32 artifact = uint32(artifacts);
@@ -123,6 +124,9 @@ library ArtifactStorageLib {
           --number;
           uint256 mod = 1 << (32 * i);
           _s.artifacts = (_s.artifacts % mod) + ((_s.artifacts / mod) >> 32) * mod;
+          _s.number = number;
+          // Rebuild inArtifacts from artifacts to maintain consistency
+          _s.inArtifacts = _s.artifacts;
         }
         return;
       }
@@ -300,6 +304,34 @@ library ArtifactLib {
     artifact.status = ArtifactStatus.DEFAULT;
 
     // Set spaceship-specific metadata
+    artifact.genre = ArtifactGenre.GENERAL;
+    artifact.charge = 0;
+    artifact.cooldown = 0;
+    artifact.durable = true;
+    artifact.reusable = true;
+    artifact.reqLevel = 0;
+    artifact.reqPopulation = 0;
+    artifact.reqSilver = 0;
+  }
+  function NewModuleArtifact(
+    uint256 seed,
+    uint256 planetHash,
+    uint8 moduleType,
+    Biome biome,
+    ArtifactRarity rarity
+  ) internal view returns (Artifact memory artifact) {
+    uint256 round = Round.get();
+    uint256 internalId = Counter.getArtifact() + 1;
+    if (internalId > type(uint24).max) revert Errors.ArtifactIdOverflow();
+
+    artifact.id = (round << 24) + internalId;
+    artifact.planetHash = planetHash;
+    artifact.artifactIndex = 23; // Module type (custom index for spaceship modules)
+    artifact.rarity = rarity;
+    artifact.biome = biome;
+    artifact.status = ArtifactStatus.DEFAULT;
+
+    // Set module-specific metadata
     artifact.genre = ArtifactGenre.GENERAL;
     artifact.charge = 0;
     artifact.cooldown = 0;

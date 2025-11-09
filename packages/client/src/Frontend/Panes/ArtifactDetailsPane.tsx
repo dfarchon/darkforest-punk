@@ -29,6 +29,7 @@ import type { ContractConstants } from "../../_types/darkforest/api/ContractsAPI
 import type { StatIdx } from "../../_types/global/GlobalTypes";
 import { getUpgradeStat } from "../../Backend/Utils/Utils";
 import { ArtifactImage } from "../Components/ArtifactImage";
+import { Btn } from "../Components/Btn";
 import { Spacer } from "../Components/CoreUI";
 import { StatIcon } from "../Components/Icons";
 import {
@@ -37,6 +38,7 @@ import {
 } from "../Components/Labels/ArtifactLabels";
 import { ArtifactBiomeLabelAnim } from "../Components/Labels/BiomeLabels";
 import { AccountLabel } from "../Components/Labels/Labels";
+import { ModuleBonuses } from "../Components/ModuleBonuses";
 import { ReadMore } from "../Components/ReadMore";
 import { SpaceshipBonuses } from "../Components/SpaceshipBonuses";
 import { Green, Red, Sub, Text, Text2, White } from "../Components/Text";
@@ -47,6 +49,7 @@ import { useAccount, useArtifact, useUIManager } from "../Utils/AppHooks";
 import type { ModalHandle } from "../Views/ModalPane";
 import { ArtifactActions } from "./ManagePlanetArtifacts/ArtifactActions";
 import { ArtifactChangeImageType } from "./ManagePlanetArtifacts/ArtifactChangeImageType";
+import { SpaceshipModuleManagementPane } from "./SpaceshipModuleManagementPane";
 import { TooltipTrigger } from "./Tooltip";
 
 const ArtifactStatusText = {
@@ -183,6 +186,7 @@ export function ArtifactDetailsBody({
   contractConstants,
   depositOn,
   noActions,
+  modal,
 }: {
   artifactId: ArtifactId;
   contractConstants: ContractConstants;
@@ -347,6 +351,31 @@ export function ArtifactDetailsBody({
         <>
           <ArtifactDescription collapsable={false} artifact={artifact} />
           <SpaceshipBonuses artifact={artifact} />
+          <Spacer height={8} />
+          {modal && (
+            <Btn
+              onClick={() => {
+                modal.push({
+                  title: "Manage Modules",
+                  element: () => (
+                    <SpaceshipModuleManagementPane
+                      artifactId={artifact.id}
+                      modal={modal}
+                    />
+                  ),
+                });
+              }}
+            >
+              Manage Modules
+            </Btn>
+          )}
+        </>
+      )}
+
+      {artifact.artifactType === ArtifactType.SpaceshipModule && (
+        <>
+          <ArtifactDescription collapsable={false} artifact={artifact} />
+          <ModuleBonuses artifact={artifact} />
         </>
       )}
 

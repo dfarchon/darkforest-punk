@@ -3,7 +3,7 @@ import type { Artifact } from "@df/types";
 import { ArtifactRarity, ArtifactType, Biome, SpaceshipType } from "@df/types";
 import { useEffect, useRef } from "react";
 import styled, { css } from "styled-components";
-
+import { useCraftedModuleByArtifact } from "../../hooks/useCraftedModule";
 import { useCraftedSpaceshipByArtifact } from "../../hooks/useCraftedSpaceship";
 import dfstyles from "../Styles/dfstyles";
 
@@ -16,6 +16,14 @@ const SPACESHIP_SPRITES = {
   [SpaceshipType.Fighter]: "/sprites/Fighters.png",
   [SpaceshipType.Destroyer]: "/sprites/Destroyers.png",
   [SpaceshipType.Carrier]: "/sprites/Cruisers.png", // Using Cruisers.png for Carrier
+} as const;
+
+// Custom module sprite URLs
+const MODULE_SPRITES = {
+  1: "/sprites/modules/Engines.png", // ENGINES_MODULE_INDEX = 1
+  2: "/sprites/modules/1Cannon.png", // WEAPONS_MODULE_INDEX = 2 (default to single cannon)
+  3: "/sprites/modules/Hull.png", // HULL_SHIELD_MODULE_INDEX = 3 (default to Hull)
+  4: "/sprites/modules/Shield.png", // HULL_SHIELD_MODULE_INDEX = 4 (default to Shield)
 } as const;
 
 // function getArtifactUrl(
@@ -48,6 +56,11 @@ export function ArtifactImage({
     spaceshipType = SpaceshipType.Scout; // Default to Scout
   }
 
+  // Get module data from CraftedModules MUD table
+  const moduleData = useCraftedModuleByArtifact(artifact);
+  // Use artifact.moduleType if available (set by ArtifactUtils), otherwise use hook result
+  const moduleType = artifact.moduleType ?? moduleData?.moduleType;
+
   // Determine if artifact should have shine effect (same logic as viewport)
   const hasShine = artifact.rarity >= ArtifactRarity.Rare;
   const isLegendary = artifact.rarity === ArtifactRarity.Legendary;
@@ -72,26 +85,30 @@ export function ArtifactImage({
   };
 
   const biomeIndex = getBiomeIndex(artifact.planetBiome);
-  const spriteUrl =
+  const spaceshipSpriteUrl =
     spaceshipType !== undefined
       ? SPACESHIP_SPRITES[spaceshipType as keyof typeof SPACESHIP_SPRITES]
       : undefined;
+  const moduleSpriteUrl =
+    moduleType !== undefined && moduleType >= 1 && moduleType <= 4
+      ? MODULE_SPRITES[moduleType as keyof typeof MODULE_SPRITES]
+      : undefined;
 
   // For spaceship artifacts, use custom sprite rendering
-  if (artifact.artifactType === ArtifactType.Spaceship && spriteUrl) {
+  if (artifact.artifactType === ArtifactType.Spaceship && spaceshipSpriteUrl) {
     return (
       <SpaceshipContainer size={size}>
         {isMythic ? (
           <MythicSpaceshipSprite
             size={size}
-            src={spriteUrl}
+            src={spaceshipSpriteUrl}
             biomeIndex={biomeIndex}
             isLegendary={isLegendary}
           />
         ) : (
           <SpaceshipSpriteImage
             size={size}
-            src={spriteUrl}
+            src={spaceshipSpriteUrl}
             biomeIndex={biomeIndex}
             isLegendary={isLegendary}
             isMythic={isMythic}
@@ -105,6 +122,39 @@ export function ArtifactImage({
           />
         )}
       </SpaceshipContainer>
+    );
+  }
+
+  // For module artifacts (type 23), use custom sprite rendering similar to spaceships
+  if (
+    artifact.artifactType === ArtifactType.SpaceshipModule &&
+    moduleSpriteUrl
+  ) {
+    return (
+      <ModuleContainer size={size}>
+        {isMythic ? (
+          <MythicModuleSprite
+            size={size}
+            src={moduleSpriteUrl}
+            isLegendary={isLegendary}
+          />
+        ) : (
+          <ModuleSpriteImage
+            size={size}
+            src={moduleSpriteUrl}
+            biomeIndex={biomeIndex}
+            isLegendary={isLegendary}
+            isMythic={isMythic}
+          />
+        )}
+        {hasShine && (
+          <ModuleShineOverlay
+            size={size}
+            isLegendary={isLegendary}
+            isMythic={isMythic}
+          />
+        )}
+      </ModuleContainer>
     );
   }
 
@@ -242,7 +292,6 @@ const MythicSpaceshipSprite: React.FC<{
         ref={canvasRef}
         width={size}
         height={size}
-        willReadFrequently={true}
         style={{
           width: `${size}px`,
           height: `${size}px`,
@@ -375,3 +424,185 @@ const SpaceshipShineOverlay = styled.div<{
     }
   }
 `;
+
+// Module-specific styled components (similar to spaceship components)
+const ModuleContainer = styled.div<{ size: number }>`
+  position: relative;
+  width: ${({ size }) => size}px;
+  height: ${({ size }) => size}px;
+  display: inline-block;
+`;
+
+const ModuleSpriteImage = styled.div<{
+  size: number;
+  src: string;
+  biomeIndex: number;
+  isLegendary: boolean;
+  isMythic: boolean;
+}>`
+  image-rendering: crisp-edges;
+  width: ${({ size }) => size}px;
+  height: ${({ size }) => size}px;
+  display: inline-block;
+  vertical-align: middle;
+  background-image: url(${({ src }) => src});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: ${({ isLegendary, isMythic }) => {
+    if (isMythic) {
+      // For mythic modules, we'll use the MythicModuleSprite component instead
+      return "none";
+    }
+    if (isLegendary) {
+      // Legendary effects: color inversion like in viewport
+      return "invert(1)";
+    }
+    return "none";
+  }};
+`;
+
+const ModuleShineOverlay = styled.div<{
+  size: number;
+  isLegendary: boolean;
+  isMythic: boolean;
+}>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: ${({ size }) => size}px;
+  height: ${({ size }) => size}px;
+  pointer-events: none;
+  background: ${({ isLegendary, isMythic }) => {
+    if (isMythic) {
+      return "linear-gradient(135deg, rgba(255,215,0,0.3) 0%, rgba(255,69,0,0.3) 100%)";
+    }
+    if (isLegendary) {
+      return "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(200,200,255,0.2) 100%)";
+    }
+    return "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(200,200,255,0.1) 100%)";
+  }};
+  animation: ${({ isMythic, isLegendary }) => {
+    if (isMythic) {
+      return "shineMythic 3s ease-in-out infinite";
+    }
+    if (isLegendary) {
+      return "shineLegendary 3s ease-in-out infinite";
+    }
+    return "shine 3s ease-in-out infinite";
+  }};
+  opacity: ${({ isMythic, isLegendary }) => {
+    if (isMythic) return 0.6;
+    if (isLegendary) return 0.4;
+    return 0.3;
+  }};
+`;
+
+// Component for mythic modules with pixel manipulation effects (single image, not sprite sheet)
+const MythicModuleSprite: React.FC<{
+  size: number;
+  src: string;
+  isLegendary: boolean;
+}> = ({ size, src, isLegendary }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const image = imageRef.current;
+    if (!canvas || !image || !image.complete) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = size;
+    canvas.height = size;
+
+    if (isLegendary) {
+      ctx.filter = "invert(1)";
+    }
+
+    // Draw the full image (not clipped from sprite sheet)
+    ctx.drawImage(image, 0, 0, size, size);
+
+    const imageData = ctx.getImageData(0, 0, size, size);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      const isBlack = r < 13 && g < 13 && b < 13;
+      const isWhite = r > 242 && g > 242 && b > 242;
+
+      if (!isBlack && !isWhite) {
+        // Enhanced color saturation for mythic
+        data[i] = Math.min(255, Math.max(0, (r - 89) * 3 + 89)); // Red
+        data[i + 1] = Math.min(255, Math.max(0, (g - 89) * 3 + 89)); // Green
+        data[i + 2] = Math.min(255, Math.max(0, (b - 89) * 3 + 89)); // Blue
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  }, [size, isLegendary]);
+
+  return (
+    <>
+      <img
+        ref={imageRef}
+        src={src}
+        style={{ display: "none" }}
+        onLoad={() => {
+          // Trigger canvas redraw when image loads
+          const canvas = canvasRef.current;
+          const image = imageRef.current;
+          if (!canvas || !image) return;
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
+
+          canvas.width = size;
+          canvas.height = size;
+
+          if (isLegendary) {
+            ctx.filter = "invert(1)";
+          }
+
+          // Draw the full image (not clipped from sprite sheet)
+          ctx.drawImage(image, 0, 0, size, size);
+
+          const imageData = ctx.getImageData(0, 0, size, size);
+          const data = imageData.data;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            const isBlack = r < 13 && g < 13 && b < 13;
+            const isWhite = r > 242 && g > 242 && b > 242;
+
+            if (!isBlack && !isWhite) {
+              data[i] = Math.min(255, Math.max(0, (r - 89) * 3 + 89));
+              data[i + 1] = Math.min(255, Math.max(0, (g - 89) * 3 + 89));
+              data[i + 2] = Math.min(255, Math.max(0, (b - 89) * 3 + 89));
+            }
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+        }}
+      />
+      <canvas
+        ref={canvasRef}
+        width={size}
+        height={size}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          imageRendering: "crisp-edges",
+        }}
+      />
+    </>
+  );
+};

@@ -18,7 +18,10 @@ import type {
   UnconfirmedChangeArtifactImageType,
   UnconfirmedChargeArtifact,
   UnconfirmedCraftSpaceship,
+  UnconfirmedCraftModule,
   UnconfirmedUpgradeFoundry,
+  UnconfirmedInstallModule,
+  UnconfirmedUninstallModule,
   UnconfirmedClaim,
   UnconfirmedClearJunk,
   UnconfirmedCreateGuild,
@@ -192,6 +195,42 @@ export function isUnconfirmedCraftSpaceshipTx(
   tx: Transaction,
 ): tx is Transaction<UnconfirmedCraftSpaceship> {
   return isUnconfirmedCraftSpaceship(tx.intent);
+}
+
+export function isUnconfirmedCraftModule(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedCraftModule {
+  return txIntent.methodName === "df__craftModule";
+}
+
+export function isUnconfirmedCraftModuleTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedCraftModule> {
+  return isUnconfirmedCraftModule(tx.intent);
+}
+
+export function isUnconfirmedInstallModule(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedInstallModule {
+  return txIntent.methodName === "df__installModule";
+}
+
+export function isUnconfirmedInstallModuleTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedInstallModule> {
+  return isUnconfirmedInstallModule(tx.intent);
+}
+
+export function isUnconfirmedUninstallModule(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedUninstallModule {
+  return txIntent.methodName === "df__uninstallModule";
+}
+
+export function isUnconfirmedUninstallModuleTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedUninstallModule> {
+  return isUnconfirmedUninstallModule(tx.intent);
 }
 
 export function isUnconfirmedUpgradeFoundry(

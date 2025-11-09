@@ -36,6 +36,7 @@ import {
   isUnconfirmedBuySpaceshipTx,
   isUnconfirmedCapturePlanetTx,
   isUnconfirmedCraftSpaceshipTx,
+  isUnconfirmedCraftModuleTx,
   isUnconfirmedUpgradeFoundryTx,
   isUnconfirmedChangeArtifactImageTypeTx,
   isUnconfirmedChargeArtifactTx,
@@ -120,7 +121,10 @@ import type {
   UnconfirmedChangeArtifactImageType,
   UnconfirmedChargeArtifact,
   UnconfirmedCraftSpaceship,
+  UnconfirmedCraftModule,
   UnconfirmedUpgradeFoundry,
+  UnconfirmedInstallModule,
+  UnconfirmedUninstallModule,
   UnconfirmedClaim,
   UnconfirmedClearJunk,
   UnconfirmedBuyJunk,
@@ -5159,6 +5163,247 @@ export class GameManager extends EventEmitter {
     }
   }
 
+  public async craftModule(
+    foundryHash: LocationId,
+    moduleType: number,
+    materials: MaterialType[],
+    amounts: number[],
+    biome: Biome,
+  ): Promise<Transaction<UnconfirmedCraftModule>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const foundry = this.entityStore.getPlanetWithId(foundryHash);
+      if (!foundry) {
+        throw new Error("tried to craft module from an unknown foundry");
+      }
+      if (foundry.planetType !== PlanetType.RUINS) {
+        throw new Error("can only craft modules at foundries");
+      }
+      if (!this.checkDelegateCondition(foundry.owner, this.getAccount())) {
+        throw new Error("can only craft modules at foundries you own");
+      }
+      if (foundry.planetLevel < 4) {
+        throw new Error("foundry must be level 4 or higher to craft modules");
+      }
+
+      // Check if materials are sufficient
+      for (let i = 0; i < materials.length; i++) {
+        const material = foundry.materials?.find(
+          (m) => m?.materialId === materials[i],
+        );
+
+        if (!material || Number(material.materialAmount) < Number(amounts[i])) {
+          throw new Error(
+            `not enough ${materials[i]} material to craft module!`,
+          );
+        }
+      }
+
+      const delegator = foundry.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const txIntent: UnconfirmedCraftModule = {
+        delegator: delegator,
+        methodName: "df__craftModule",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          locationIdToDecStr(foundryHash),
+          moduleType,
+          materials,
+          amounts.map((amount) => BigInt(Number(amount))),
+          biome,
+        ]),
+        foundryHash,
+        moduleType,
+        materials,
+        amounts,
+        biome,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__craftModule",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async installModule(
+    spaceshipId: ArtifactId,
+    moduleId: ArtifactId,
+    planetHash: LocationId,
+  ): Promise<Transaction<UnconfirmedInstallModule>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const planet = this.entityStore.getPlanetWithId(planetHash);
+      if (!planet) {
+        throw new Error("tried to install module on unknown planet");
+      }
+      if (!this.checkDelegateCondition(planet.owner, this.getAccount())) {
+        throw new Error("can only install modules on planets you own");
+      }
+
+      // Verify spaceship artifact exists
+      const spaceship = this.entityStore.getArtifactById(spaceshipId);
+      if (!spaceship) {
+        throw new Error("spaceship artifact not found");
+      }
+      if (spaceship.artifactType !== ArtifactType.Spaceship) {
+        throw new Error("artifact is not a spaceship");
+      }
+
+      // Verify module artifact exists
+      const module = this.entityStore.getArtifactById(moduleId);
+      if (!module) {
+        throw new Error("module artifact not found");
+      }
+      if (module.artifactType !== ArtifactType.SpaceshipModule) {
+        throw new Error("artifact is not a module");
+      }
+
+      // Verify both artifacts are on the same planet
+      if (
+        spaceship.onPlanetId !== planetHash ||
+        module.onPlanetId !== planetHash
+      ) {
+        throw new Error("spaceship and module must be on the same planet");
+      }
+
+      const delegator = planet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      // Convert ArtifactId (hex string) to uint32 for contract call
+      // Extract lower 32 bits from the hex string
+      const spaceshipIdBigInt = BigInt("0x" + spaceshipId);
+      const moduleIdBigInt = BigInt("0x" + moduleId);
+      const uint32Mask = BigInt("0xFFFFFFFF");
+      const spaceshipIdUint32 = Number(spaceshipIdBigInt & uint32Mask);
+      const moduleIdUint32 = Number(moduleIdBigInt & uint32Mask);
+
+      const txIntent: UnconfirmedInstallModule = {
+        delegator: delegator,
+        methodName: "df__installModule",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          spaceshipIdUint32,
+          moduleIdUint32,
+          locationIdToDecStr(planetHash),
+        ]),
+        spaceshipId,
+        moduleId,
+        planetHash,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__installModule",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async uninstallModule(
+    spaceshipId: ArtifactId,
+    moduleId: ArtifactId,
+    planetHash: LocationId,
+  ): Promise<Transaction<UnconfirmedUninstallModule>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const planet = this.entityStore.getPlanetWithId(planetHash);
+      if (!planet) {
+        throw new Error("tried to uninstall module from unknown planet");
+      }
+      if (!this.checkDelegateCondition(planet.owner, this.getAccount())) {
+        throw new Error("can only uninstall modules from planets you own");
+      }
+
+      // Verify spaceship artifact exists
+      const spaceship = this.entityStore.getArtifactById(spaceshipId);
+      if (!spaceship) {
+        throw new Error("spaceship artifact not found");
+      }
+      if (spaceship.artifactType !== ArtifactType.Spaceship) {
+        throw new Error("artifact is not a spaceship");
+      }
+
+      // Verify module artifact exists
+      const module = this.entityStore.getArtifactById(moduleId);
+      if (!module) {
+        throw new Error("module artifact not found");
+      }
+
+      const delegator = planet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      // Convert ArtifactId (hex string) to uint32 for contract call
+      // Extract lower 32 bits from the hex string
+      const spaceshipIdBigInt = BigInt("0x" + spaceshipId);
+      const moduleIdBigInt = BigInt("0x" + moduleId);
+      const uint32Mask = BigInt("0xFFFFFFFF");
+      const spaceshipIdUint32 = Number(spaceshipIdBigInt & uint32Mask);
+      const moduleIdUint32 = Number(moduleIdBigInt & uint32Mask);
+
+      const txIntent: UnconfirmedUninstallModule = {
+        delegator: delegator,
+        methodName: "df__uninstallModule",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          spaceshipIdUint32,
+          moduleIdUint32,
+          locationIdToDecStr(planetHash),
+        ]),
+        spaceshipId,
+        moduleId,
+        planetHash,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__uninstallModule",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
   public async upgradeFoundry(
     foundryHash: LocationId,
   ): Promise<Transaction<UnconfirmedUpgradeFoundry>> {
@@ -6121,6 +6366,10 @@ export class GameManager extends EventEmitter {
         }
         if (isActivated(artifact)) {
           throw new Error("can't move an activated artifact");
+        }
+        // Block moving module artifacts (type 23 - SpaceshipModule)
+        if (artifact.artifactType === ArtifactType.SpaceshipModule) {
+          throw new Error("cannot move module artifacts");
         }
         if (!oldPlanet?.heldArtifactIds?.includes(artifactMoved)) {
           throw new Error("that artifact isn't on this planet!");

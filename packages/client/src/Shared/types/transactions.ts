@@ -37,6 +37,10 @@ export type ContractMethodName =
   | "df__withdrawSilver"
   | "df__withdrawMaterial"
   | "df__craftSpaceship"
+  | "df__craftModule"
+  | "df__upgradeFoundry"
+  | "df__installModule"
+  | "df__uninstallModule"
   | "df__addJunk"
   | "df__clearJunk"
   | "df__buyJunk"
@@ -301,9 +305,41 @@ export type UnconfirmedCraftSpaceship = TxIntent & {
 /**
  * @hidden
  */
+export type UnconfirmedCraftModule = TxIntent & {
+  methodName: "df__craftModule";
+  foundryHash: LocationId;
+  moduleType: number;
+  materials: number[];
+  amounts: number[];
+  biome: number;
+};
+
+/**
+ * @hidden
+ */
 export type UnconfirmedUpgradeFoundry = TxIntent & {
   methodName: "df__upgradeFoundry";
   foundryHash: LocationId;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedInstallModule = TxIntent & {
+  methodName: "df__installModule";
+  spaceshipId: ArtifactId;
+  moduleId: ArtifactId;
+  planetHash: LocationId;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedUninstallModule = TxIntent & {
+  methodName: "df__uninstallModule";
+  spaceshipId: ArtifactId;
+  moduleId: ArtifactId;
+  planetHash: LocationId;
 };
 
 /**

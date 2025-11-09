@@ -13,7 +13,9 @@ import PlanetWithdrawSilverSystemAbi from "contracts/out/PlanetWithdrawSilverSys
 import WithdrawMaterialSystemAbi from "contracts/out/WithdrawMaterialSystem.sol/WithdrawMaterialSystem.abi.json";
 import PlanetJunkSystemAbi from "contracts/out/PlanetJunkSystem.sol/PlanetJunkSystem.abi.json";
 import FoundryCraftingSystemAbi from "contracts/out/FoundryCraftingSystem.sol/FoundryCraftingSystem.abi.json";
+import ModuleCraftingSystemAbi from "contracts/out/ModuleCraftingSystem.sol/ModuleCraftingSystem.abi.json";
 import FoundryUpgradeSystemAbi from "contracts/out/FoundryUpgradeSystem.sol/FoundryUpgradeSystem.abi.json";
+import SpaceshipModuleSystemAbi from "contracts/out/SpaceshipModuleSystem.sol/SpaceshipModuleSystem.abi.json";
 import PlayerSystemAbi from "contracts/out/PlayerSystem.sol/PlayerSystem.abi.json";
 import TestOnlySystemAbi from "contracts/out/TestOnlySystem.sol/TestOnlySystem.abi.json";
 import TickSystemAbi from "contracts/out/TickSystem.sol/TickSystem.abi.json";
@@ -145,13 +147,29 @@ export const GUILD_SYSTEM_ID = resourceToHex({
 
 export const GUILD_SYSTEM_ABI: Abi = GuildSystemAbi;
 
-export const FOUNDRY_CRAFTING_SYSTEM_ID = resourceToHex({
+export const FOUNDRY_CRAFTING_SPACESHIP_SYSTEM_ID = resourceToHex({
   type: "system",
   namespace: "df",
   name: "FoundryCraftingSystem",
 });
 
-export const FOUNDRY_CRAFTING_SYSTEM_ABI: Abi = FoundryCraftingSystemAbi;
+export const FOUNDRY_CRAFTING_SYSTEM_SPACESHIP_ABI: Abi =
+  FoundryCraftingSystemAbi;
+
+export const FOUNDRY_CRAFTING_MODULE_SYSTEM_ABI: Abi = ModuleCraftingSystemAbi;
+export const FOUNDRY_CRAFTING_MODULE_SYSTEM_ID = resourceToHex({
+  type: "system",
+  namespace: "df",
+  name: "ModuleCraftingSystem",
+});
+
+export const SPACESHIP_MODULE_SYSTEM_ID = resourceToHex({
+  type: "system",
+  namespace: "df",
+  name: "SpaceshipModuleSystem",
+});
+
+export const SPACESHIP_MODULE_SYSTEM_ABI: Abi = SpaceshipModuleSystemAbi;
 
 export const FOUNDRY_UPGRADE_SYSTEM_ID = resourceToHex({
   type: "system",
@@ -189,7 +207,19 @@ export const get_ABI_from_FunctionName = (functionName: string) => {
     functionName === "craftSpaceship" ||
     functionName === "df__craftSpaceship"
   ) {
-    return FOUNDRY_CRAFTING_SYSTEM_ABI;
+    return FOUNDRY_CRAFTING_SYSTEM_SPACESHIP_ABI;
+  } else if (
+    functionName === "craftModule" ||
+    functionName === "df__craftModule"
+  ) {
+    return FOUNDRY_CRAFTING_MODULE_SYSTEM_ABI;
+  } else if (
+    functionName === "installModule" ||
+    functionName === "df__installModule" ||
+    functionName === "uninstallModule" ||
+    functionName === "df__uninstallModule"
+  ) {
+    return SPACESHIP_MODULE_SYSTEM_ABI;
   } else if (
     functionName === "upgradeFoundry" ||
     functionName === "df__upgradeFoundry"
@@ -288,7 +318,22 @@ export const get_SystemId_from_FunctionName = (functionName: string) => {
     functionName === "craftSpaceship" ||
     functionName === "df__craftSpaceship"
   ) {
-    return FOUNDRY_CRAFTING_SYSTEM_ID;
+    return FOUNDRY_CRAFTING_SPACESHIP_SYSTEM_ID;
+  } else if (
+    functionName === "craftModule" ||
+    functionName === "df__craftModule"
+  ) {
+    return FOUNDRY_CRAFTING_MODULE_SYSTEM_ID;
+  } else if (
+    functionName === "installModule" ||
+    functionName === "df__installModule"
+  ) {
+    return SPACESHIP_MODULE_SYSTEM_ID;
+  } else if (
+    functionName === "uninstallModule" ||
+    functionName === "df__uninstallModule"
+  ) {
+    return SPACESHIP_MODULE_SYSTEM_ID;
   } else if (
     functionName === "upgradeFoundry" ||
     functionName === "df__upgradeFoundry"
