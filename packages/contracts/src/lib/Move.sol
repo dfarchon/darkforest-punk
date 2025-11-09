@@ -9,7 +9,6 @@ import { Counter } from "codegen/tables/Counter.sol";
 import { Artifact as ArtifactTable } from "codegen/tables/Artifact.sol";
 import { ArtifactOwner } from "codegen/tables/ArtifactOwner.sol";
 import { SpaceshipBonus, SpaceshipBonusData } from "codegen/tables/SpaceshipBonus.sol";
-import { ModuleBonus, ModuleBonusData } from "codegen/tables/ModuleBonus.sol";
 import { PlanetType, ArtifactStatus, MaterialType } from "codegen/common.sol";
 import { Planet } from "libraries/Planet.sol";
 import { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
@@ -166,9 +165,9 @@ library MoveLib {
       if (ArtifactTable.getArtifactIndex(uint32(move.artifact)) == 3) {
         // This is a spaceship artifact, apply attack bonus
         SpaceshipBonusData memory bonuses = SpaceshipBonus.get(uint32(move.artifact));
-        ModuleBonusData memory moduleBonuses = ModuleBonus.get(uint32(move.artifact));
-        if (bonuses.attackBonus > 0 || moduleBonuses.attackBonus > 0) {
-          arrivedPopulation = (arrivedPopulation * (100 + bonuses.attackBonus + moduleBonuses.attackBonus)) / 100;
+
+        if (bonuses.attackBonus > 0) {
+          arrivedPopulation = (arrivedPopulation * (100 + bonuses.attackBonus)) / 100;
         }
       }
     }
@@ -233,12 +232,14 @@ library MoveLib {
   ) internal view returns (Planet memory) {
     // Get spaceship bonuses from the table
     SpaceshipBonusData memory bonuses = SpaceshipBonus.get(spaceshipArtifactId);
-    ModuleBonusData memory moduleBonuses = ModuleBonus.get(spaceshipArtifactId);
     // Apply speed bonus: newSpeed = originalSpeed * ((100 + speedBonus) / 100)
-    if (bonuses.speedBonus > 0 || moduleBonuses.speedBonus > 0) {
-      planet.speed =
-        (planet.speed * (100 + bonuses.speedBonus + moduleBonuses.speedBonus + moduleBonuses.speedBonus)) /
-        100;
+    if (bonuses.speedBonus > 0) {
+      planet.speed = (planet.speed * (100 + bonuses.speedBonus)) / 100;
+    }
+
+    // Apply range bonus: newRange = originalRange * ((100 + rangeBonus) / 100)
+    if (bonuses.rangeBonus > 0) {
+      planet.range = (planet.range * (100 + bonuses.rangeBonus)) / 100;
     }
 
     // Note: Attack bonus affects the population being moved (arrivedPopulation in combat)
