@@ -1,12 +1,14 @@
 import { EMPTY_ADDRESS } from "@df/constants";
 import {
   artifactCooldownHoursMap,
+  canWithdrawArtifact,
   dateMintedAt,
   hasStatBoost,
   isActivated,
   isSpaceShip,
 } from "@df/gamelogic";
 import { artifactName, getPlanetName, getPlanetNameHash } from "@df/procedural";
+import { isUnconfirmedWithdrawArtifactTx } from "@df/serde";
 import type {
   Artifact,
   ArtifactId,
@@ -16,8 +18,10 @@ import type {
 } from "@df/types";
 import {
   ArtifactRarityNames,
+  ArtifactStatus,
   ArtifactStatusNames,
   ArtifactType,
+  PlanetType,
   TooltipName,
 } from "@df/types";
 import { range } from "@df/utils/number";
@@ -38,6 +42,7 @@ import {
 } from "../Components/Labels/ArtifactLabels";
 import { ArtifactBiomeLabelAnim } from "../Components/Labels/BiomeLabels";
 import { AccountLabel } from "../Components/Labels/Labels";
+import { LoadingSpinner } from "../Components/LoadingSpinner";
 import { ModuleBonuses } from "../Components/ModuleBonuses";
 import { ReadMore } from "../Components/ReadMore";
 import { SpaceshipBonuses } from "../Components/SpaceshipBonuses";
@@ -45,7 +50,12 @@ import { Green, Red, Sub, Text, Text2, White } from "../Components/Text";
 import { TextPreview } from "../Components/TextPreview";
 import { formatDuration, TimeUntil } from "../Components/TimeUntil";
 import dfstyles from "../Styles/dfstyles";
-import { useAccount, useArtifact, useUIManager } from "../Utils/AppHooks";
+import {
+  useAccount,
+  useArtifact,
+  usePlanet,
+  useUIManager,
+} from "../Utils/AppHooks";
 import type { ModalHandle } from "../Views/ModalPane";
 import { ArtifactActions } from "./ManagePlanetArtifacts/ArtifactActions";
 import { ArtifactChangeImageType } from "./ManagePlanetArtifacts/ArtifactChangeImageType";
@@ -198,6 +208,8 @@ export function ArtifactDetailsBody({
   const myAccount = useAccount(uiManager);
   const artifactWrapper = useArtifact(uiManager, artifactId);
   const artifact = artifactWrapper.value;
+  const onPlanetWrapper = usePlanet(uiManager, artifact?.onPlanetId);
+  const onPlanet = onPlanetWrapper.value;
 
   // const currentBlockNumber = useEmitterValue(uiManager.getEthConnection().blockNumber$, undefined);
 
@@ -482,6 +494,39 @@ export function ArtifactDetailsBody({
             to activate artifact.
           </p>
         )} */}
+
+        {artifact.artifactType === ArtifactType.SpaceshipModule &&
+          canWithdrawArtifact(
+            myAccount,
+            artifact,
+            onPlanet,
+            uiManager.getArtifactWithdrawalDisabled(),
+          ) && (
+            <>
+              <Spacer height={8} />
+              <Btn
+                disabled={artifact.transactions?.hasTransaction(
+                  isUnconfirmedWithdrawArtifactTx,
+                )}
+                onClick={() => {
+                  if (onPlanet) {
+                    uiManager.withdrawArtifact(
+                      onPlanet.locationId,
+                      artifact.id,
+                    );
+                  }
+                }}
+              >
+                {artifact.transactions?.hasTransaction(
+                  isUnconfirmedWithdrawArtifactTx,
+                ) ? (
+                  <LoadingSpinner initialText={"Withdrawing..."} />
+                ) : (
+                  "Withdraw"
+                )}
+              </Btn>
+            </>
+          )}
 
         {!noActions && (
           <ArtifactActions

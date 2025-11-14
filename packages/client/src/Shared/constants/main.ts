@@ -73,6 +73,11 @@ export const MIN_SPACESHIP_TYPE = ArtifactType.ShipMothership;
 export const MAX_SPACESHIP_TYPE = ArtifactType.ShipPink;
 
 /**
+ * The value of the minimum, valid spaceship type
+ */
+export const MIN_MODULE_TYPE = ArtifactType.SpaceshipModule;
+
+/**
  * The value of the minimum, valid artifact rarity
  */
 export const MIN_ARTIFACT_RARITY = ArtifactRarity.Common;
