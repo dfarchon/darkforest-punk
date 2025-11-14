@@ -1388,7 +1388,8 @@ export class GameUIManager extends EventEmitter {
     this.modalManager.setCursorState(CursorState.Normal);
 
     // Set to undefined after SendComplete so it can send another one
-    this.artifactSending[locationId] = undefined;
+    // Use setArtifactSending to properly publish the change to artifactSending$ emitter
+    this.setArtifactSending(locationId, undefined);
 
     this.sendingPlanet = undefined;
     // Done at the end so they clear the artifact
