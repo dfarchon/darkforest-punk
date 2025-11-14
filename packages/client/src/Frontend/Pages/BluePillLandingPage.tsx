@@ -46,6 +46,7 @@ import { makeContractsAPI } from "../../Backend/GameLogic/ContractsAPI";
 import { GameManager } from "../../Backend/GameLogic/GameManager";
 import { GameManagerEvent } from "../../Backend/GameLogic/GameManager";
 import { GameUIManager } from "../../Backend/GameLogic/GameUIManager";
+import { PlanetRenderManager } from "../../Shared/renderer/Entities/PlanetRenderManager";
 import TutorialManager, {
   TutorialState,
 } from "../../Backend/GameLogic/TutorialManager";
@@ -1412,6 +1413,9 @@ export function BluePillLandingPage() {
 
       // Set MUD components for spaceship bonus calculations
       newGameUIManager.setMUDComponents(components);
+
+      // Set MUD components for PlanetRenderManager (for module overlays in viewport)
+      PlanetRenderManager.setComponents(components);
 
       terminal.current?.newline();
       terminal.current?.println("Connected to " + WORLD_NAME + " Contract");

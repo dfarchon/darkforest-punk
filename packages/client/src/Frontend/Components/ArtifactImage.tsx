@@ -1,10 +1,12 @@
 import { ArtifactFileColor } from "@df/gamelogic";
 import type { Artifact } from "@df/types";
 import { ArtifactRarity, ArtifactType, Biome, SpaceshipType } from "@df/types";
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import styled, { css } from "styled-components";
+
 import { useCraftedModuleByArtifact } from "../../hooks/useCraftedModule";
 import { useCraftedSpaceshipByArtifact } from "../../hooks/useCraftedSpaceship";
+import { useInstalledModules } from "../../hooks/useInstalledModules";
 import dfstyles from "../Styles/dfstyles";
 
 // export const ARTIFACT_URL = 'https://d2wspbczt15cqu.cloudfront.net/v0.6.0-artifacts/';
@@ -25,6 +27,115 @@ const MODULE_SPRITES = {
   3: "/sprites/modules/Hull.png", // HULL_SHIELD_MODULE_INDEX = 3 (default to Hull)
   4: "/sprites/modules/Shield.png", // HULL_SHIELD_MODULE_INDEX = 4 (default to Shield)
 } as const;
+
+// Module slot types
+enum ModuleSlotType {
+  ENGINES = 1,
+  WEAPONS = 2,
+  HULL = 3,
+  SHIELD = 4,
+}
+
+// Module limits per spaceship type
+const SPACESHIP_MODULE_LIMITS: {
+  [spaceshipType: number]: {
+    [ModuleSlotType.ENGINES]: number;
+    [ModuleSlotType.WEAPONS]: number;
+    [ModuleSlotType.HULL]: number;
+    [ModuleSlotType.SHIELD]: number;
+  };
+} = {
+  1: {
+    [ModuleSlotType.ENGINES]: 1,
+    [ModuleSlotType.WEAPONS]: 1,
+    [ModuleSlotType.HULL]: 1,
+    [ModuleSlotType.SHIELD]: 1,
+  },
+  2: {
+    [ModuleSlotType.ENGINES]: 2,
+    [ModuleSlotType.WEAPONS]: 2,
+    [ModuleSlotType.HULL]: 2,
+    [ModuleSlotType.SHIELD]: 2,
+  },
+  3: {
+    [ModuleSlotType.ENGINES]: 3,
+    [ModuleSlotType.WEAPONS]: 4,
+    [ModuleSlotType.HULL]: 2,
+    [ModuleSlotType.SHIELD]: 2,
+  },
+  4: {
+    [ModuleSlotType.ENGINES]: 4,
+    [ModuleSlotType.WEAPONS]: 2,
+    [ModuleSlotType.HULL]: 4,
+    [ModuleSlotType.SHIELD]: 4,
+  },
+};
+
+/**
+ * Calculate module overlay position based on spaceship type, slot type, and index
+ * Layout pattern:
+ * - Engines: Left side, vertical stack
+ * - Shield/Hull: Middle, 2x2 grid
+ * - Weapons: Right side, vertical stack
+ */
+function calculateModulePosition(
+  size: number,
+  spaceshipType: number,
+  slotType: number,
+  index: number,
+  _totalInSlot: number,
+): { top: number; left: number; width: number; height: number } {
+  const moduleSize = size * 0.4; // Modules are 40% of spaceship size (increased for visibility)
+  const padding = size * 0.03; // 3% padding
+
+  // Get limits for this spaceship type
+  const limits =
+    SPACESHIP_MODULE_LIMITS[spaceshipType] || SPACESHIP_MODULE_LIMITS[1];
+  const maxInSlot = limits[slotType as ModuleSlotType] || 1;
+
+  if (slotType === ModuleSlotType.ENGINES) {
+    // Engines: Left side, vertical stack
+    const totalHeight = maxInSlot * moduleSize + (maxInSlot - 1) * padding;
+    const startTop = (size - totalHeight) / 2;
+    const left = padding;
+    const top = startTop + index * (moduleSize + padding);
+    return { top, left, width: moduleSize, height: moduleSize };
+  } else if (slotType === ModuleSlotType.WEAPONS) {
+    // Weapons: Right side, vertical stack
+    const totalHeight = maxInSlot * moduleSize + (maxInSlot - 1) * padding;
+    const startTop = (size - totalHeight) / 2;
+    const left = size - moduleSize - padding;
+    const top = startTop + index * (moduleSize + padding);
+    return { top, left, width: moduleSize, height: moduleSize };
+  } else if (
+    slotType === ModuleSlotType.HULL ||
+    slotType === ModuleSlotType.SHIELD
+  ) {
+    // Shield/Hull: Middle area, 2x2 grid
+    const gridCols = 2;
+    const gridRows = Math.ceil(maxInSlot / gridCols);
+    const gridCellSize = (size * 0.4) / gridCols; // Middle area is 40% of size
+    const gridStartLeft = size * 0.3; // Start at 30% from left
+    const gridStartTop = (size - gridRows * gridCellSize) / 2;
+
+    const row = Math.floor(index / gridCols);
+    const col = index % gridCols;
+    const left =
+      gridStartLeft + col * gridCellSize + (gridCellSize - moduleSize) / 2;
+    const top =
+      gridStartTop + row * gridCellSize + (gridCellSize - moduleSize) / 2;
+
+    return { top, left, width: moduleSize, height: moduleSize };
+  }
+
+  // Default: center
+  return {
+    top: (size - moduleSize) / 2,
+    left: (size - moduleSize) / 2,
+    width: moduleSize,
+    height: moduleSize,
+  };
+}
 
 // function getArtifactUrl(
 //   thumb: boolean,
@@ -94,6 +205,12 @@ export function ArtifactImage({
       ? MODULE_SPRITES[moduleType as keyof typeof MODULE_SPRITES]
       : undefined;
 
+  // Get installed modules for spaceship artifacts
+  // Always call the hook (React rules), but pass undefined for non-spaceships
+  const installedModules = useInstalledModules(
+    artifact.artifactType === ArtifactType.Spaceship ? artifact : undefined,
+  );
+
   // For spaceship artifacts, use custom sprite rendering
   if (artifact.artifactType === ArtifactType.Spaceship && spaceshipSpriteUrl) {
     return (
@@ -114,6 +231,97 @@ export function ArtifactImage({
             isMythic={isMythic}
           />
         )}
+        {/* Render module overlays */}
+        {(() => {
+          // Group modules by slot type and calculate positions
+          const modulesBySlot: {
+            [slotType: number]: typeof installedModules;
+          } = {};
+          installedModules.forEach((module) => {
+            if (!modulesBySlot[module.moduleSlotType]) {
+              modulesBySlot[module.moduleSlotType] = [];
+            }
+            modulesBySlot[module.moduleSlotType].push(module);
+          });
+
+          const overlayElements: JSX.Element[] = [];
+
+          Object.keys(modulesBySlot).forEach((slotTypeStr) => {
+            const slotType = Number(slotTypeStr);
+            const modulesInSlot = modulesBySlot[slotType];
+
+            modulesInSlot.forEach((module, indexInSlot) => {
+              const overlayModuleSpriteUrl =
+                module.moduleType >= 1 && module.moduleType <= 4
+                  ? (MODULE_SPRITES[
+                      module.moduleType as keyof typeof MODULE_SPRITES
+                    ] as string)
+                  : undefined;
+
+              if (!overlayModuleSpriteUrl) return;
+
+              // Calculate position based on spaceship type, slot type, and index
+              // Convert SpaceshipType enum to number (1-4)
+              const spaceshipTypeNum =
+                typeof spaceshipType === "number"
+                  ? spaceshipType
+                  : Number(spaceshipType) || 1;
+              const position = calculateModulePosition(
+                size,
+                spaceshipTypeNum,
+                slotType,
+                indexInSlot,
+                modulesInSlot.length,
+              );
+
+              // Get module artifact for rarity/biome info
+              // Try to get the actual module artifact to get its rarity
+              const moduleRarity = artifact.rarity; // Default to spaceship rarity
+              const moduleBiomeIndex = biomeIndex; // Use spaceship biome for consistency
+
+              // Try to get module artifact from context if available
+              // Note: This requires access to uiManager or artifact map
+              // For now, we'll use spaceship's rarity, but ideally should get module's rarity
+
+              // Check if module has rare+ rarity (same logic as ModuleSpriteImage)
+              const moduleHasShine = moduleRarity >= ArtifactRarity.Rare;
+              const moduleIsLegendary =
+                moduleRarity === ArtifactRarity.Legendary;
+              const moduleIsMythic = moduleRarity === ArtifactRarity.Mythic;
+
+              overlayElements.push(
+                <React.Fragment
+                  key={`${module.moduleId}-${slotType}-${indexInSlot}`}
+                >
+                  <ModuleOverlay
+                    $size={position.width}
+                    $src={overlayModuleSpriteUrl}
+                    $biomeIndex={moduleBiomeIndex}
+                    $isLegendary={moduleIsLegendary}
+                    $isMythic={moduleIsMythic}
+                    $hasShine={moduleHasShine}
+                    $slotType={slotType}
+                    $top={position.top}
+                    $left={position.left}
+                  />
+                  {moduleHasShine && (
+                    <ModuleShineOverlay
+                      size={position.width}
+                      isLegendary={moduleIsLegendary}
+                      isMythic={moduleIsMythic}
+                      style={{
+                        top: `${position.top}px`,
+                        left: `${position.left}px`,
+                      }}
+                    />
+                  )}
+                </React.Fragment>,
+              );
+            });
+          });
+
+          return overlayElements;
+        })()}
         {hasShine && (
           <SpaceshipShineOverlay
             size={size}
@@ -495,6 +703,44 @@ const ModuleShineOverlay = styled.div<{
     if (isMythic) return 0.6;
     if (isLegendary) return 0.4;
     return 0.3;
+  }};
+`;
+
+// Module overlay for displaying installed modules on spaceships
+const ModuleOverlay = styled.div<{
+  $size: number;
+  $src: string;
+  $biomeIndex: number;
+  $isLegendary: boolean;
+  $isMythic: boolean;
+  $hasShine: boolean;
+  $slotType: number;
+  $top: number;
+  $left: number;
+}>`
+  position: absolute;
+  top: ${({ $top }) => $top}px;
+  left: ${({ $left }) => $left}px;
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  pointer-events: none;
+  image-rendering: crisp-edges;
+  background-image: url(${({ $src }) => $src});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 1; // Full opacity like ModuleSpriteImage
+  z-index: 10; // Ensure overlays are above the spaceship sprite
+  filter: ${({ $isLegendary, $isMythic }) => {
+    if ($isMythic) {
+      // For mythic modules, we'll use the shine overlay for effects
+      return "none";
+    }
+    if ($isLegendary) {
+      // Legendary effects: color inversion like ModuleSpriteImage and viewport
+      return "invert(1)";
+    }
+    return "none";
   }};
 `;
 

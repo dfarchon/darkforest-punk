@@ -23,7 +23,7 @@ import {
   LogoTypeNames,
   MemeTypeNames,
 } from "@df/types";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
 import { Btn } from "../../Components/Btn";
@@ -70,32 +70,48 @@ export function ArtifactChangeImageType({
   const depositPlanet = depositPlanetWrapper.value;
   const onPlanet = onPlanetWrapper.value;
 
-  // Calculate defaultImageType during render
-  // Since we use key={artifactId} in parent, React will remount this component
-  // when artifactId changes, so state will be initialized correctly
-  const defaultImageType =
-    onPlanet &&
-    artifact &&
-    artifact.artifactType === ArtifactType.Avatar &&
-    artifact.imageType > 0
-      ? artifact.imageType
-      : logoTypeToNum(LogoType.DFARES);
-
-  // Initialize state with defaultImageType
-  // The useState initializer function only runs once per mount,
-  // so it will capture the defaultImageType value at mount time
+  // Initialize state with a constant default value
+  // We'll update it in useEffect after mount to avoid reading hook values during render
   const [imageType, setImageType] = useState(() => {
-    // Calculate defaultImageType inside the initializer to ensure
-    // we're using the values available at mount time
-    const mountDefaultImageType =
-      onPlanet &&
-      artifact &&
-      artifact.artifactType === ArtifactType.Avatar &&
-      artifact.imageType > 0
-        ? artifact.imageType
-        : logoTypeToNum(LogoType.DFARES);
-    return mountDefaultImageType.toString();
+    return logoTypeToNum(LogoType.DFARES).toString();
   });
+
+  // Use a ref to track if we've initialized and the previous artifactId
+  const initializedRef = useRef(false);
+  const prevArtifactIdRef = useRef<ArtifactId | undefined>(artifactId);
+
+  // Update state after render using useEffect (runs asynchronously after render completes)
+  // Only run once on mount or when artifactId changes (component remounted via key prop)
+  useEffect(() => {
+    // Check if this is a new mount or artifactId changed
+    const isNewMount = !initializedRef.current;
+    const artifactIdChanged = prevArtifactIdRef.current !== artifactId;
+
+    if (isNewMount || artifactIdChanged) {
+      initializedRef.current = true;
+      prevArtifactIdRef.current = artifactId;
+
+      // Read hook values inside effect, not in dependencies
+      // This ensures we're reading stable values after render completes
+      const currentOnPlanet = onPlanetWrapper.value;
+      const currentArtifactValue = artifactWrapper.value;
+
+      // Calculate defaultImageType after render, not during
+      const defaultImageType =
+        currentOnPlanet &&
+        currentArtifactValue &&
+        currentArtifactValue.artifactType === ArtifactType.Avatar &&
+        currentArtifactValue.imageType > 0
+          ? currentArtifactValue.imageType
+          : logoTypeToNum(LogoType.DFARES);
+
+      // Use functional update to ensure we're not causing issues
+      setImageType((prev) => {
+        const newValue = defaultImageType.toString();
+        return prev !== newValue ? newValue : prev;
+      });
+    }
+  }, [artifactId, onPlanetWrapper, artifactWrapper]); // Depend on wrappers, not their values
 
   // const otherArtifactsOnPlanet = usePlanetArtifacts(onPlanetWrapper, uiManager);
 

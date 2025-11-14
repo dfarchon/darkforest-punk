@@ -12,8 +12,10 @@ import {
   memeTypeToNum,
 } from "@df/procedural";
 import { isUnconfirmedMoveTx } from "@df/serde";
+import { artifactIdFromHexStr } from "@df/serde";
 import type {
   Artifact,
+  ArtifactId,
   AvatarType,
   LocatablePlanet,
   LocationId,
@@ -25,6 +27,7 @@ import type {
   MaterialType,
 } from "@df/types";
 import {
+  ArtifactRarity,
   ArtifactType,
   Biome,
   HatType,
@@ -80,6 +83,26 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     3: "/sprites/modules/Hull.png", // Hull
     4: "/sprites/modules/Shield.png", // Shield
   } as const;
+
+  // Module slot types
+  private static readonly ModuleSlotType = {
+    ENGINES: 1,
+    WEAPONS: 2,
+    HULL: 3,
+    SHIELD: 4,
+  } as const;
+
+  // Module limits per spaceship type
+  private static readonly SPACESHIP_MODULE_LIMITS: {
+    [spaceshipType: number]: {
+      [key: number]: number;
+    };
+  } = {
+    1: { 1: 1, 2: 1, 3: 1, 4: 1 }, // Scout
+    2: { 1: 2, 2: 2, 3: 2, 4: 2 }, // Fighter
+    3: { 1: 3, 2: 4, 3: 2, 4: 2 }, // Destroyer
+    4: { 1: 4, 2: 2, 3: 4, 4: 4 }, // Carrier
+  };
 
   HTMLImages: Record<number, HTMLImageElement> = {};
   private static components: ClientComponents | null = null;
@@ -605,6 +628,273 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       artifact.rarity, // artifact rarity for effects
       alpha, // alpha value for transparency
     );
+
+    // Render module overlays on top of the spaceship
+    this.renderModuleOverlays(
+      artifact,
+      spaceshipType,
+      centerW,
+      radiusW,
+      rotation,
+      alpha,
+    );
+  }
+
+  /**
+   * Get installed modules for a spaceship artifact (non-hook version for class methods)
+   */
+  private getInstalledModules(artifact: Artifact): Array<{
+    moduleId: ArtifactId;
+    moduleType: number;
+    moduleSlotType: number;
+  }> {
+    const components = this.getComponents();
+
+    const modules: Array<{
+      moduleId: ArtifactId;
+      moduleType: number;
+      moduleSlotType: number;
+    }> = [];
+
+    // Convert artifact ID to number for comparison (same as useInstalledModules)
+    const artifactIdStr = artifact.id.toString();
+    // Remove 0x prefix if present, then parse as hex
+    const cleanHex = artifactIdStr.startsWith("0x")
+      ? artifactIdStr.slice(2)
+      : artifactIdStr;
+    const spaceshipIdNum = parseInt(cleanHex, 16);
+
+    const installedMap = components.SpaceshipModuleInstalled.values.artifactId;
+    const slotTypeMap =
+      components.SpaceshipModuleInstalled.values.moduleSlotType;
+    const installedFlagMap =
+      components.SpaceshipModuleInstalled.values.installed;
+    const moduleTypeMap = components.CraftedModules.values.moduleType;
+    // Iterate through all entries in SpaceshipModuleInstalled
+    for (const [moduleIdKey, storedSpaceshipId] of installedMap.entries()) {
+      const installedFlag = installedFlagMap.get(moduleIdKey);
+      const isInstalled = installedFlag === true;
+
+      const sourceSpaceshipId =
+        typeof storedSpaceshipId === "bigint"
+          ? Number(storedSpaceshipId)
+          : Number(storedSpaceshipId);
+
+      const matchesSpaceship = sourceSpaceshipId === spaceshipIdNum;
+
+      if (matchesSpaceship && isInstalled) {
+        const keyString = moduleIdKey.toString();
+        const hexMatch = keyString.match(/0x([0-9a-fA-F]+)/);
+        if (hexMatch) {
+          const hexValue = hexMatch[1];
+          const slotType = slotTypeMap.get(moduleIdKey);
+          if (hexValue && slotType !== undefined && Number(slotType) > 0) {
+            const moduleIdStr = artifactIdFromHexStr("0x" + hexValue);
+            const moduleIdNum = parseInt(moduleIdStr, 16);
+
+            // Find module type from CraftedModules
+            let moduleType: number | undefined;
+            for (const [key, value] of moduleTypeMap.entries()) {
+              const moduleKeyString = key.toString();
+              const numericStr = moduleIdNum.toString();
+              const hexStr = moduleIdNum.toString(16);
+              if (
+                moduleKeyString.includes(numericStr) ||
+                moduleKeyString.includes(hexStr) ||
+                moduleKeyString.includes(moduleIdStr)
+              ) {
+                moduleType = value as number;
+                break;
+              }
+            }
+
+            if (
+              moduleType !== undefined &&
+              moduleType >= 1 &&
+              moduleType <= 4
+            ) {
+              modules.push({
+                moduleId: moduleIdStr,
+                moduleType: moduleType,
+                moduleSlotType: Number(slotType),
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return modules;
+  }
+
+  /**
+   * Calculate module overlay position (same logic as ArtifactImage)
+   */
+  private calculateModulePosition(
+    size: number,
+    spaceshipType: number,
+    slotType: number,
+    index: number,
+  ): { top: number; left: number; width: number; height: number } {
+    const moduleSize = size * 0.11; // Modules are 25% of spaceship size (reduced for better fit)
+    const padding = size * 0.001; // 2% padding
+    const horizontalOffset = size * 0.1; // Move all modules 10% to the right
+
+    const limits =
+      PlanetRenderManager.SPACESHIP_MODULE_LIMITS[spaceshipType] ||
+      PlanetRenderManager.SPACESHIP_MODULE_LIMITS[1];
+    const maxInSlot = limits[slotType] || 1;
+
+    if (slotType === PlanetRenderManager.ModuleSlotType.ENGINES) {
+      const totalHeight = maxInSlot * moduleSize + (maxInSlot - 1) * padding;
+      const startTop = (size - totalHeight) / 2;
+      const left = size * 0.15 + horizontalOffset; // Move from edge to 15% from left (closer to center) + offset
+      const top = startTop + index * (moduleSize + padding);
+      return { top, left, width: moduleSize, height: moduleSize };
+    } else if (slotType === PlanetRenderManager.ModuleSlotType.WEAPONS) {
+      const totalHeight = maxInSlot * moduleSize + (maxInSlot - 1) * padding;
+      const startTop = (size - totalHeight) / 2;
+      const left = size - moduleSize - size * 0.4 + horizontalOffset; // Move from edge to 40% from right (closer to center) + offset
+      const top = startTop + index * (moduleSize + padding);
+      return { top, left, width: moduleSize, height: moduleSize };
+    } else if (
+      slotType === PlanetRenderManager.ModuleSlotType.HULL ||
+      slotType === PlanetRenderManager.ModuleSlotType.SHIELD
+    ) {
+      const gridCols = 2;
+      const gridRows = Math.ceil(maxInSlot / gridCols);
+      const gridCellSize = (size * 0.25) / gridCols; // Middle area is 30% of size
+      const gridStartLeft = size * 0.25 + horizontalOffset; // Start at 25% from left + offset
+      const gridStartTop = (size - gridRows * gridCellSize) / 2;
+
+      const row = Math.floor(index / gridCols);
+      const col = index % gridCols;
+      const left =
+        gridStartLeft + col * gridCellSize + (gridCellSize - moduleSize) / 2;
+      const top =
+        gridStartTop + row * gridCellSize + (gridCellSize - moduleSize) / 2;
+
+      return { top, left, width: moduleSize, height: moduleSize };
+    }
+
+    return {
+      top: (size - moduleSize) / 2,
+      left: (size - moduleSize) / 2 + horizontalOffset,
+      width: moduleSize,
+      height: moduleSize,
+    };
+  }
+
+  /**
+   * Render module overlays on top of spaceship sprite in viewport
+   */
+  private renderModuleOverlays(
+    artifact: Artifact,
+    spaceshipType: SpaceshipType,
+    centerW: WorldCoords,
+    radiusW: number,
+    rotation: number,
+    alpha: number,
+  ): void {
+    const installedModules = this.getInstalledModules(artifact);
+    if (installedModules.length === 0) {
+      return;
+    }
+
+    // Group modules by slot type
+    const modulesBySlot: {
+      [slotType: number]: typeof installedModules;
+    } = {};
+    installedModules.forEach((module) => {
+      if (!modulesBySlot[module.moduleSlotType]) {
+        modulesBySlot[module.moduleSlotType] = [];
+      }
+      modulesBySlot[module.moduleSlotType].push(module);
+    });
+
+    const spaceshipTypeNum = Number(spaceshipType);
+    const spriteSize = radiusW * 2; // Total sprite size in world coordinates
+
+    // Render each module overlay
+    Object.keys(modulesBySlot).forEach((slotTypeStr) => {
+      const slotType = Number(slotTypeStr);
+      const modulesInSlot = modulesBySlot[slotType];
+
+      modulesInSlot.forEach((module, indexInSlot) => {
+        const moduleImage = this.moduleImages.get(module.moduleType);
+        if (!moduleImage) {
+          console.log(
+            "[PlanetRenderManager] Module image not found for type:",
+            module.moduleType,
+          );
+          return;
+        }
+
+        // Calculate position relative to spaceship center
+        // spriteSize is in world coordinates (radiusW * 2)
+        const position = this.calculateModulePosition(
+          spriteSize,
+          spaceshipTypeNum,
+          slotType,
+          indexInSlot,
+        );
+
+        // Position is relative to top-left (0,0) of sprite, convert to center-relative offset
+        // All values are already in world coordinates
+        const offsetX = position.left + position.width / 2 - spriteSize / 2;
+        const offsetY = position.top + position.height / 2 - spriteSize / 2;
+
+        // Apply rotation to the offset (rotate around spaceship center)
+        const cosR = Math.cos(rotation);
+        const sinR = Math.sin(rotation);
+        const rotatedOffsetX = offsetX * cosR - offsetY * sinR;
+        const rotatedOffsetY = offsetX * sinR + offsetY * cosR;
+
+        // Calculate final world position
+        const moduleCenterW: WorldCoords = {
+          x: centerW.x + rotatedOffsetX,
+          y: centerW.y + rotatedOffsetY,
+        };
+
+        const moduleSizeW = position.width; // Already in world units
+
+        // Get module artifact for rarity info (same as queueCustomModuleSprite)
+        // Try to get artifact from renderer context
+        const rendererContext = this.renderer.context as {
+          getArtifactWithId?: (id: ArtifactId) => Artifact | undefined;
+        };
+        let moduleRarity = ArtifactRarity.Common; // Default rarity
+        if (rendererContext?.getArtifactWithId) {
+          const moduleArtifact = rendererContext.getArtifactWithId(
+            module.moduleId,
+          );
+          if (moduleArtifact) {
+            moduleRarity = moduleArtifact.rarity;
+          }
+        }
+
+        // Modules are single images, not sprite sheets - use full image dimensions
+        const imageWidth = moduleImage.width || moduleSizeW;
+        const imageHeight = moduleImage.height || moduleSizeW;
+
+        // Use drawHTMLImageWithRarityEffects to match artifactType 23 rendering
+        this.renderer.overlay2dRenderer.drawHTMLImageWithRarityEffects(
+          moduleImage,
+          moduleCenterW,
+          moduleSizeW,
+          moduleSizeW,
+          radiusW,
+          false,
+          0, // x offset (0 for single image, not sprite sheet)
+          0, // y offset (0 for single image)
+          imageWidth, // full image width
+          imageHeight, // full image height
+          rotation, // Apply same rotation as spaceship
+          moduleRarity, // artifact rarity for effects
+          alpha, // alpha value for transparency
+        );
+      });
+    });
   }
 
   public queueCustomModuleSprite(
