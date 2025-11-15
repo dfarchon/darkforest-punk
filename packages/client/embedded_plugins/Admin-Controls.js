@@ -236,8 +236,33 @@ function accountOptions(players) {
 function planetTypeOptions() {
   const options = [];
 
-  for (let i = 0; i <= Object.values(PlanetType).length - 1; i++) {
-    options.push(html`<option value=${i}>${PlanetTypeNames[i]}</option>`);
+  // Add all planet types from enum (excluding UNKNOWN=0)
+  // Note: The loop uses index i as the dropdown value, which gets incremented in createPlanet
+  // Contract enum: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6
+  // Dropdown values: 0→1, 1→2, 2→3, 3→4, 4→5, 5→6 (after type++)
+  // We skip UNKNOWN (i=0) and start from PLANET (i=1)
+  const planetTypeCount = Object.values(PlanetType).length;
+  for (let i = 1; i < planetTypeCount; i++) {
+    if (PlanetTypeNames[i]) {
+      options.push(html`<option value=${i - 1}>${PlanetTypeNames[i]}</option>`);
+    }
+  }
+
+  // Always add SUN manually (for compatibility with @dfares/types that may not have it yet)
+  // SUN is planetType 6 in contract
+  // Dropdown value should be 5 (0-based, excluding UNKNOWN), which becomes 6 after type++ in createPlanet
+  // Check if SUN already exists in options
+  const hasSun =
+    options.some((opt) => {
+      // Check if any option has value 5 (which would be SUN)
+      const optValue = opt?.props?.value ?? opt?.value;
+      return optValue === 5 || optValue === "5";
+    }) ||
+    (PlanetTypeNames[6] === "Sun" && options.length >= 6);
+
+  if (!hasSun) {
+    // Add SUN: dropdown value 5 (0-based, excluding UNKNOWN), becomes 6 in contract after type++
+    options.push(html`<option value=${5}>Sun</option>`);
   }
 
   return options;

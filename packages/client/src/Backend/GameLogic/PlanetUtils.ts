@@ -16,10 +16,10 @@ import type {
   Materials,
   Planet,
   PlanetBonus,
-  PlanetLevel,
   UpgradeState,
   WorldLocation,
 } from "@df/types";
+import { PlanetLevel } from "@df/types";
 import {
   Biome,
   getMaxMaterialType,
@@ -93,8 +93,8 @@ export class PlanetUtils {
       planetLevel: planet.planetLevel,
       planetType: planet.planetType,
       isHomePlanet: false,
-      energyCap: planet.energyCap,
-      energyGrowth: planet.energyGrowth,
+      populationCap: planet.populationCap,
+      populationGrowth: planet.populationGrowth,
 
       silverCap: planet.silverCap,
       silverGrowth: planet.silverGrowth,
@@ -102,7 +102,7 @@ export class PlanetUtils {
       range: planet.range,
       defense: planet.defense,
       speed: planet.speed,
-      energy: planet.energy,
+      population: planet.population,
       silver: planet.silver,
       lastUpdated: planet.lastUpdated,
       upgradeState: planet.upgradeState,
@@ -112,7 +112,7 @@ export class PlanetUtils {
       syncedWithContract: planet.syncedWithContract,
       coordsRevealed: planet.coordsRevealed,
       bonus: planet.bonus,
-      energyGroDoublers: planet.energyGroDoublers,
+      populationGroDoublers: planet.populationGroDoublers,
       silverGroDoublers: planet.silverGroDoublers,
       universeZone: planet.universeZone,
       distSquare: planet.distSquare,
@@ -255,8 +255,8 @@ export class PlanetUtils {
     let silverCap: number;
     let silverGrowth: number;
     const bonus: PlanetBonus = [
-      this._doubleEnergyCap(planetId),
-      this._doubleEnergyGrowth(planetId),
+      this._doublePopulationCap(planetId),
+      this._doublePopulationGrowth(planetId),
       this._doubleRange(planetId),
       this._doubleSpeed(planetId),
       this._doubleDefense(planetId),
@@ -411,9 +411,9 @@ export class PlanetUtils {
       range,
       speed,
       defense,
-      energy: population / CONTRACT_PRECISION,
-      energyCap: populationCap / CONTRACT_PRECISION,
-      energyGrowth: populationGrowth / CONTRACT_PRECISION,
+      population: population / CONTRACT_PRECISION,
+      populationCap: populationCap / CONTRACT_PRECISION,
+      populationGrowth: populationGrowth / CONTRACT_PRECISION,
       silver: silver / CONTRACT_PRECISION,
       silverCap: silverCap / CONTRACT_PRECISION,
       silverGrowth: silverGrowth / CONTRACT_PRECISION,
@@ -423,7 +423,7 @@ export class PlanetUtils {
       coordsRevealed,
       silverSpent: this.calculateSilverSpent(upgradeState, silverCap),
       bonus,
-      energyGroDoublers: 0,
+      populationGroDoublers: 0,
       silverGroDoublers: 0,
       prospectedBlockNumber: prospectedPlanet
         ? Number(prospectedPlanet.blockNumber)
@@ -505,17 +505,37 @@ export class PlanetUtils {
     const levelBigInt = getBytesFromHex(locationId, 29, 32);
     const thresholds = this.contractConstants.PLANET_LEVEL_THRESHOLDS;
     const maxLvl = thresholds.length;
-    let x = 0;
+    const minLevel =
+      this.contractConstants.SPACE_TYPE_PLANET_LEVEL_MIN_LIMITS[
+        Number(spaceType) - 1
+      ];
+
+    // Calculate base level from hash (matches contract logic)
+    let tempLevel = 0;
     for (let i = 0; i < maxLvl; i++) {
       if (levelBigInt < bigInt(thresholds[i])) {
-        x = maxLvl - i;
+        tempLevel = maxLvl - i;
+        // Check minimum level before applying bonuses - revert if below minimum
+        // This matches contract logic: if (tempLevel < minLevel) revert
+        if (tempLevel < minLevel) {
+          // Return PlanetLevel.ZERO as marker that planet should not be spawned
+          // The contract will revert for these, so they won't exist on-chain
+          return PlanetLevel.ZERO;
+        }
         break;
       }
     }
 
-    // _bounceAndBoundLevel
+    // If no match found (tempLevel == 0), check if level 0 is allowed
+    // For DEEP_SPACE and DEAD_SPACE (minLevel > 0), level 0 is not allowed
+    if (tempLevel === 0 && minLevel > 0) {
+      // DEEP_SPACE or DEAD_SPACE (minLevel = 3) - level 0 not allowed
+      return PlanetLevel.ZERO;
+    }
+
+    // _bounceAndBoundLevel - apply bonuses and limits
     let level =
-      x +
+      tempLevel +
       this.contractConstants.SPACE_TYPE_PLANET_LEVEL_BONUS[
         Number(spaceType) - 1
       ];
@@ -535,6 +555,17 @@ export class PlanetUtils {
     );
 
     posLevel = Math.min(posLevel, limit);
+
+    // Final check: prevent level 0 for DEEP_SPACE and DEAD_SPACE after all calculations
+    // This ensures level 0 is never returned for these space types
+    if (posLevel === 0 && minLevel > 0) {
+      // DEEP_SPACE or DEAD_SPACE (minLevel = 3) - level 0 not allowed
+      return PlanetLevel.ZERO;
+    }
+
+    // If tempLevel was 0 and minLevel is 0 (NEBULA/SPACE), level 0 is valid
+    // But after bonuses, posLevel might be > 0, so return posLevel
+    // If posLevel is still 0 and minLevel is 0, that's also valid
     return posLevel as PlanetLevel;
   }
 
@@ -551,15 +582,50 @@ export class PlanetUtils {
       this.contractConstants.PLANET_TYPE_WEIGHTS[Number(spaceType) - 1][
         Number(planetLevel)
       ];
-    const length = thresholds.length;
+
+    // Ensure thresholds array has at least 6 elements (including SUN)
+    // If not, pad with zeros for missing planet types
+    const paddedThresholds = [...thresholds];
+    while (paddedThresholds.length < 6) {
+      paddedThresholds.push(0);
+    }
+
+    const length = paddedThresholds.length;
     let cumulativeThreshold = 0;
+
+    // Calculate total threshold sum to check for all-zero case
+    const totalThreshold = paddedThresholds.reduce((sum, val) => sum + val, 0);
+
+    // If all thresholds are zero, default to PLANET type (type 1)
+    if (totalThreshold === 0) {
+      console.warn(
+        `All planet type thresholds are zero for spaceType=${spaceType}, level=${planetLevel}. Defaulting to PLANET type.`,
+      );
+      return PlanetType.PLANET;
+    }
+
     for (let i = 0; i < length; i++) {
-      cumulativeThreshold += thresholds[i];
-      if (levelBigInt < bigInt(cumulativeThreshold)) {
+      cumulativeThreshold += paddedThresholds[i];
+      if (levelBigInt.lesser(bigInt(cumulativeThreshold))) {
         return (i + 1) as PlanetType;
       }
     }
-    throw new Error("planetType is unknown");
+
+    // If cumulative threshold doesn't cover all possible values (0-255),
+    // and we've exhausted all thresholds, default to the last planet type (SUN)
+    // This handles cases where thresholds sum to less than 256
+    if (cumulativeThreshold < 256) {
+      console.warn(
+        `Planet type thresholds sum to ${cumulativeThreshold} < 256 for spaceType=${spaceType}, level=${planetLevel}. ` +
+          `levelBigInt=${levelBigInt.toString()} doesn't match any threshold. Defaulting to SUN type.`,
+      );
+      return PlanetType.SUN;
+    }
+
+    throw new Error(
+      `planetType is unknown: spaceType=${spaceType}, level=${planetLevel}, ` +
+        `levelBigInt=${levelBigInt.toString()}, cumulativeThreshold=${cumulativeThreshold}`,
+    );
   }
 
   public _initPopulationAndSilver(
@@ -586,12 +652,12 @@ export class PlanetUtils {
     ];
   }
 
-  public _doubleEnergyCap(locationId: LocationId): boolean {
+  public _doublePopulationCap(locationId: LocationId): boolean {
     const rand = getBytesFromHex(locationId, 27, 28);
     return rand.toJSNumber() < 16 ? true : false;
   }
 
-  public _doubleEnergyGrowth(locationId: LocationId): boolean {
+  public _doublePopulationGrowth(locationId: LocationId): boolean {
     const rand = getBytesFromHex(locationId, 26, 27);
     return rand.toJSNumber() < 16 ? true : false;
   }
@@ -628,8 +694,8 @@ export class PlanetUtils {
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < upgradeState[i]; j++) {
         const upgrade = upgradeConfig[i][j];
-        popCapMul *= upgrade.energyCapMultiplier / 100;
-        popGroMul *= upgrade.energyGroMultiplier / 100;
+        popCapMul *= upgrade.populationCapMultiplier / 100;
+        popGroMul *= upgrade.populationGrowthMultiplier / 100;
         rangeMul *= upgrade.rangeMultiplier / 100;
         speedMul *= upgrade.speedMultiplier / 100;
         defMul *= upgrade.defMultiplier / 100;
@@ -676,6 +742,24 @@ export class PlanetUtils {
         growthRate: 0,
         growth: false,
       });
+    }
+
+    // SUN planets generate SOLAR_ENERGY (uses silverCap/silverGrowth like other materials)
+    if (planetType === PlanetType.SUN) {
+      const solarEnergyIndex = materials.findIndex(
+        (mat) => mat.materialId === MaterialType.SOLAR_ENERGY,
+      );
+      if (solarEnergyIndex !== -1) {
+        materials[solarEnergyIndex] = {
+          materialId: MaterialType.SOLAR_ENERGY,
+          materialAmount: planet.population,
+          cap: planet.silverCap,
+          growthRate:
+            planet.silverGrowth / (Number(MaterialType.SOLAR_ENERGY) * 2),
+          growth: true,
+        };
+      }
+      return materials;
     }
 
     if (planetType !== PlanetType.SILVER_MINE) {
@@ -746,9 +830,9 @@ export class PlanetUtils {
     );
 
     // Calculate material cap and growth rate based on planet's silver properties
-    // This matches the implementation in getDefaultMaterials and Solidity getMaterialGrowth
-    const materialCap = planet.silverCap;
-    const materialGrowthRate = planet.silverGrowth;
+    // All materials, including SOLAR_ENERGY, use silverCap/silverGrowth
+    const defaultMaterialCap = planet.silverCap;
+    const defaultMaterialGrowthRate = planet.silverGrowth;
 
     // Add placeholder for index 0 (UNKNOWN material type)
     materials.push({
@@ -763,6 +847,10 @@ export class PlanetUtils {
     for (let i = 1; i <= getMaxMaterialType(); i++) {
       let materialAmount = 0;
       let growth = false;
+
+      // All materials, including SOLAR_ENERGY, use silverCap/silverGrowth
+      const materialCap = defaultMaterialCap;
+      const materialGrowthRate = defaultMaterialGrowthRate;
 
       if (materialStorage) {
         const materialExists =
@@ -814,6 +902,46 @@ export class PlanetUtils {
         lastUpdateTick: planet.lastUpdated,
       });
     }
+
+    // For SUN planets, ensure SOLAR_ENERGY is always present with growth enabled
+    // Similar to how SILVER_MINE planets have materials with growth enabled
+    if (planet.planetType === PlanetType.SUN) {
+      const solarEnergyIndex = materials.findIndex(
+        (mat) => mat.materialId === MaterialType.SOLAR_ENERGY,
+      );
+      if (solarEnergyIndex === -1) {
+        // SOLAR_ENERGY not found, add it with growth enabled
+        materials.push({
+          materialId: MaterialType.SOLAR_ENERGY,
+          materialAmount: 0,
+          cap: defaultMaterialCap,
+          growthRate:
+            defaultMaterialGrowthRate / (Number(MaterialType.SOLAR_ENERGY) * 2),
+          growth: true, // Enable growth by default for SUN planets (like silver mines)
+          lastUpdateTick: planet.lastUpdated,
+        });
+      } else {
+        // SOLAR_ENERGY exists, ensure growth is enabled and growth rate is correct
+        // Always enable growth for SUN planets if silverGrowth > 0 (regardless of contract flag)
+        if (defaultMaterialGrowthRate > 0) {
+          materials[solarEnergyIndex] = {
+            ...materials[solarEnergyIndex],
+            growth: true, // Always enable growth for SUN planets (like silver mines)
+            growthRate:
+              defaultMaterialGrowthRate /
+              (Number(MaterialType.SOLAR_ENERGY) * 2), // Ensure correct growth rate
+          };
+        } else {
+          // Even if silverGrowth is 0, ensure growth flag is set (will use 0 growth rate)
+          materials[solarEnergyIndex] = {
+            ...materials[solarEnergyIndex],
+            growth: true, // Enable growth flag (growth rate will be 0 if silverGrowth is 0)
+            growthRate: 0, // Set to 0 if no silverGrowth
+          };
+        }
+      }
+    }
+
     return materials;
   }
 }

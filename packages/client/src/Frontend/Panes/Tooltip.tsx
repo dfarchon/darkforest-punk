@@ -181,6 +181,8 @@ export function getMaterialTooltipName(
       return TooltipName.MaterialBlackalloy;
     case 11:
       return TooltipName.MaterialCorruptedCrystal;
+    case 12:
+      return TooltipName.MaterialSolarEnergy;
     default:
       return undefined;
   }

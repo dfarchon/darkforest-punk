@@ -410,15 +410,32 @@ library PlanetLib {
     uint256 value = uint24(planet.planetHash);
     uint32[] memory thresholds = PlanetLevelConfig.getThresholds();
     uint256 maxLvl = thresholds.length;
+    uint8 minLevel = SpaceTypeConfig.getPlanetLevelMinLimits()[uint8(planet.spaceType) - 1];
+    uint256 tempLevel = 0; // Initialize to 0, will be set in loop if match found
+
     for (uint256 i; i < maxLvl; ) {
       if (value < thresholds[i]) {
-        planet.level = maxLvl - i;
-        break;
+        tempLevel = maxLvl - i;
+        // Check minimum level before assigning - revert if below minimum
+        if (tempLevel < minLevel) {
+          revert Errors.InvalidPlanetHash();
+        } else {
+          // Only assign to planet.level if valid
+          planet.level = tempLevel;
+          break;
+        }
       }
       unchecked {
         ++i;
       }
     }
+
+    // If value >= all thresholds, tempLevel remains 0
+    // For DEEP_SPACE and DEAD_SPACE (minLevel > 0), level 0 is not allowed - revert
+    if (tempLevel == 0 && minLevel > 0) {
+      revert Errors.InvalidPlanetHash();
+    }
+
     _bounceAndBoundLevel(planet);
   }
 
@@ -429,8 +446,7 @@ library PlanetLib {
 
     // bound level
     if (level < 0) {
-      planet.level = 0;
-      return;
+      revert Errors.InvalidPlanetHash();
     }
     uint256 posLevel = uint256(level);
     uint256 limit = SpaceTypeConfig.getPlanetLevelLimits()[uint8(planet.spaceType) - 1];
@@ -441,7 +457,16 @@ library PlanetLib {
     if (posLevel > limit) {
       posLevel = limit;
     }
+
     planet.level = posLevel;
+
+    // Final check: prevent level 0 for DEEP_SPACE and DEAD_SPACE
+    // This ensures level 0 is never set for these space types
+    uint8 minLevel = SpaceTypeConfig.getPlanetLevelMinLimits()[uint8(planet.spaceType) - 1];
+    if (planet.level < minLevel && minLevel > 0) {
+      // DEEP_SPACE or DEAD_SPACE (minLevel = 3) - level 0 not allowed
+      revert Errors.InvalidPlanetHash();
+    }
   }
 
   function _initPlanetType(Planet memory planet) internal view {
@@ -493,6 +518,13 @@ library PlanetLib {
     planet.level = constants.level;
     planet.planetType = constants.planetType;
     planet.spaceType = constants.spaceType;
+
+    // Enforce minimum level for existing planets read from storage
+    // This fixes level 0 planets that were created before the minimum level check was added
+    uint8 minLevel = SpaceTypeConfig.getPlanetLevelMinLimits()[uint8(planet.spaceType) - 1];
+    if (planet.level < minLevel) {
+      planet.level = minLevel;
+    }
   }
 
   function _readEffects(Planet memory planet) internal view {
@@ -629,6 +661,10 @@ library PlanetLib {
   }
 
   function _silverGrow(Planet memory planet, uint256 tickElapsed) internal pure {
+    // SUN planets don't grow silver, only materialsStorage (SOLAR_ENERGY) grows
+    if (planet.planetType == PlanetType.SUN) {
+      return;
+    }
     uint256 silver = planet.silver;
     uint256 cap = planet.silverCap;
     if (planet.silverGrowth == 0 || silver >= cap) {
@@ -639,10 +675,13 @@ library PlanetLib {
   }
 
   function _materialGrow(Planet memory planet, uint256 tickElapsed) internal view {
-    if (planet.planetType != PlanetType.ASTEROID_FIELD) {
+    // Materials grow on ASTEROID_FIELD planets (biome-specific materials)
+    // SOLAR_ENERGY grows on SUN planets (star-like suns)
+    if (planet.planetType != PlanetType.ASTEROID_FIELD && planet.planetType != PlanetType.SUN) {
       return;
     }
     MaterialStorage memory materialsStorage = planet.materialStorage;
+
     for (uint256 i; i < materialsStorage.growth.length; i++) {
       // materialsStorage.growth[i] is true if the material is allowed to grow double check in Material.sol
       if (materialsStorage.growth[i]) {
@@ -722,6 +761,21 @@ library PlanetLib {
     MaterialType[] memory singleMats = new MaterialType[](1);
     singleMats[0] = biomeMat;
     return singleMats;
+  }
+
+  /**
+   * @notice Returns allowed materials for a planet type
+   * @dev SUN planets can generate SOLAR_ENERGY
+   */
+  function allowedMaterialsForPlanetType(PlanetType planetType) internal pure returns (MaterialType[] memory) {
+    if (planetType == PlanetType.SUN) {
+      MaterialType[] memory sunMats = new MaterialType[](1);
+      sunMats[0] = MaterialType.SOLAR_ENERGY;
+      return sunMats;
+    }
+    // For other planet types, return empty array (materials are biome-based)
+    MaterialType[] memory empty = new MaterialType[](0);
+    return empty;
   }
 
   function _validateUpgrade(

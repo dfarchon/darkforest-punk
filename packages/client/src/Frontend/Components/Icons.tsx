@@ -57,9 +57,9 @@ export const BranchIcon = ({ branch }: { branch: number }) => {
 export const StatIcon = ({ stat }: { stat: StatIdx }) => {
   if (stat === StatIdx.Defense) {
     return <Icon type={IconType.Defense} />;
-  } else if (stat === StatIdx.EnergyGro) {
+  } else if (stat === StatIdx.PopulationGro) {
     return <Icon type={IconType.EnergyGrowth} />;
-  } else if (stat === StatIdx.EnergyCap) {
+  } else if (stat === StatIdx.PopulationCap) {
     return <Icon type={IconType.Energy} />;
   } else if (stat === StatIdx.Range) {
     return <Icon type={IconType.Range} />;

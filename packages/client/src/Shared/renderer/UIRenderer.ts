@@ -90,24 +90,24 @@ export class UIRenderer implements UIRendererType {
             RenderZIndex.Voyages,
           );
 
-          let effectiveEnergy = myPlanet.energy;
+          let effectivePopulation = myPlanet.population;
 
           for (const unconfirmedMove of myPlanet.transactions?.getTransactions(
             isUnconfirmedMoveTx,
           ) ?? []) {
-            effectiveEnergy -= unconfirmedMove.intent.forces;
+            effectivePopulation -= unconfirmedMove.intent.forces;
           }
 
-          const energy =
+          const population =
             (uiManager.getForcesSending(myPlanet.locationId) / 100) *
-            effectiveEnergy;
+            effectivePopulation;
           const distance = uiManager.getDistCoords(from, to);
 
           const myAtk: number = uiManager.getEnergyArrivingForMove(
             myPlanet.locationId,
             toPlanet?.locationId,
             distance,
-            energy,
+            population,
           );
 
           if (

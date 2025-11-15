@@ -4,7 +4,7 @@ export default defineWorld({
   namespace: "df",
   enums: {
     PlanetStatus: ["DEFAULT", "DESTROYED"],
-    PlanetType: ["UNKNOWN", "PLANET", "ASTEROID_FIELD", "FOUNDRY", "SPACETIME_RIP", "QUASAR"],
+    PlanetType: ["UNKNOWN", "PLANET", "ASTEROID_FIELD", "FOUNDRY", "SPACETIME_RIP", "QUASAR", "SUN"],
     SpaceType: ["UNKNOWN", "NEBULA", "SPACE", "DEEP_SPACE", "DEAD_SPACE"],
     Biome: [
       "UNKNOWN",
@@ -32,6 +32,7 @@ export default defineWorld({
       "PYROSTEEL",
       "BLACKALLOY",
       "CORRUPTED_CRYSTAL",
+      "SOLAR_ENERGY",
     ],
     ArtifactStatus: ["DEFAULT", "COOLDOWN", "CHARGING", "READY", "ACTIVE", "BROKEN"],
     ArtifactGenre: ["UNKNOWN", "DEFENSIVE", "OFFENSIVE", "PRODUCTIVE", "GENERAL"],
@@ -203,6 +204,7 @@ export default defineWorld({
       schema: {
         perlinThresholds: "uint32[]",
         planetLevelLimits: "uint8[]",
+        planetLevelMinLimits: "uint8[]",
         planetLevelBonus: "int8[]",
       },
       key: [],

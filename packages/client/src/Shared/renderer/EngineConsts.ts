@@ -40,7 +40,7 @@ export const engineConsts = {
     sensaicha: [77, 81, 57] as RGBVec,
     range: {
       dash: [150, 145, 191] as RGBVec,
-      energy: [245, 180, 130] as RGBVec,
+      population: [245, 180, 130] as RGBVec,
     },
     voyage: {
       enemy: [255, 0, 0] as RGBVec,
@@ -53,8 +53,8 @@ export const engineConsts = {
       supportA: [0, 255, 255, 255] as RGBAVec,
     },
     bonus: {
-      energyCap: hslToRgb([360, 73, 70]) as RGBVec,
-      energyGro: hslToRgb([136, 73, 70]) as RGBVec,
+      populationCap: hslToRgb([360, 73, 70]) as RGBVec,
+      populationGro: hslToRgb([136, 73, 70]) as RGBVec,
       speed: hslToRgb([290, 73, 70]) as RGBVec,
       range: hslToRgb([50, 73, 70]) as RGBVec,
       defense: hslToRgb([231, 73, 70]) as RGBVec,

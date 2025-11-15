@@ -26,11 +26,11 @@ import { AccountLabel } from "../Components/Labels/Labels";
 import { MythicLabelText } from "../Components/Labels/MythicLabel";
 import {
   DefenseText,
-  EnergyGrowthText,
+  PopulationGrowthText,
   JunkText,
   MaterialsDisplay,
   PlanetBiomeTypeLabelAnim,
-  PlanetEnergyLabel,
+  PlanetPopulationLabel,
   PlanetLevel,
   PlanetRank,
   PlanetSilverLabel,
@@ -253,8 +253,8 @@ export function PlanetCard({
                       <Icon type={IconType.Energy} />
                     </AlignCenterHorizontally>
                     <AlignCenterHorizontally>
-                      <PlanetEnergyLabel planet={planet} />
-                      {planet?.bonus && planet.bonus[StatIdx.EnergyCap] && (
+                      <PlanetPopulationLabel planet={planet} />
+                      {planet?.bonus && planet.bonus[StatIdx.PopulationCap] && (
                         <TimesTwo />
                       )}
                       <EmSpacer width={0.5} />
@@ -304,8 +304,8 @@ export function PlanetCard({
                       <Icon type={IconType.EnergyGrowth} />
                     </AlignCenterHorizontally>
                     <AlignCenterHorizontally>
-                      <EnergyGrowthText planet={planet} />
-                      {planet?.bonus && planet.bonus[StatIdx.EnergyGro] && (
+                      <PopulationGrowthText planet={planet} />
+                      {planet?.bonus && planet.bonus[StatIdx.PopulationGro] && (
                         <TimesTwo />
                       )}
                       <EmSpacer width={0.5} />

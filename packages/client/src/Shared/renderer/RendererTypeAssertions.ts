@@ -20,6 +20,9 @@ import type {
   QuasarRayRendererType,
   QuasarRendererType,
   RectRendererType,
+  SunBodyRendererType,
+  SunRayRendererType,
+  SunRendererType,
   RingRendererType,
   RuinsRendererType,
   SpaceRendererType,
@@ -204,4 +207,22 @@ export function isAIZoneRenderer(
   renderer: BaseRenderer,
 ): renderer is AIZoneRendererType {
   return renderer.rendererType === RendererType.AIZone;
+}
+
+export function isSunRenderer(
+  renderer: BaseRenderer,
+): renderer is SunRendererType {
+  return renderer.rendererType === RendererType.Sun;
+}
+
+export function isSunBodyRenderer(
+  renderer: BaseRenderer,
+): renderer is SunBodyRendererType {
+  return renderer.rendererType === RendererType.SunBody;
+}
+
+export function isSunRayRenderer(
+  renderer: BaseRenderer,
+): renderer is SunRayRendererType {
+  return renderer.rendererType === RendererType.SunRay;
 }

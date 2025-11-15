@@ -18,6 +18,7 @@ import {
   artifactIdToDecStr,
   isUnconfirmedAcceptInvitationTx,
   isUnconfirmedActivateArtifactTx,
+  isUnconfirmedAddJunkTx,
   isUnconfirmedApplyToGuildTx,
   isUnconfirmedApproveApplicationTx,
   isUnconfirmedBlueTx,
@@ -461,6 +462,16 @@ export class GameManagerFactory {
           await gameManager.hardRefreshPlanet(tx.intent.foundryHash);
           // Force an update to ensure materials are refreshed in UI
           gameManager.getGameObjects().forceTick(tx.intent.foundryHash);
+          // Emit planet update event to trigger UI refresh
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
+        } else if (isUnconfirmedAddJunkTx(tx)) {
+          // Wait a bit for MUD components to sync after transaction confirmation
+          // Materials (like SOLAR_ENERGY) are stored in MUD tables (PlanetMaterial), so we need to wait
+          // for the store sync to complete before refreshing
+          await delay(500);
+          await gameManager.hardRefreshPlanet(tx.intent.locationId);
+          // Force an update to ensure materials are refreshed in UI
+          gameManager.getGameObjects().forceTick(tx.intent.locationId);
           // Emit planet update event to trigger UI refresh
           gameManager.emit(GameManagerEvent.PlanetUpdate);
         } else if (isUnconfirmedFindArtifactTx(tx)) {

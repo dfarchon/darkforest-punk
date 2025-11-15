@@ -167,6 +167,7 @@ export const TooltipName = {
   MaterialPyrosteel: "MaterialPyrosteel" as TooltipName,
   MaterialBlackalloy: "MaterialBlackalloy" as TooltipName,
   MaterialCorruptedCrystal: "MaterialCorruptedCrystal" as TooltipName,
+  MaterialSolarEnergy: "MaterialSolarEnergy" as TooltipName,
 };
 
 /**

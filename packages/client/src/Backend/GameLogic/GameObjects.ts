@@ -602,7 +602,10 @@ export class GameObjects {
       (planet as LocatablePlanet).location = loc;
       (planet as LocatablePlanet).biome = this.getBiome(loc);
 
-      if (planet.addJunkTick === 0) {
+      // For SUN planets, always read materials from contract to ensure SOLAR_ENERGY is visible
+      if (planet.planetType === PlanetType.SUN) {
+        planet.materials = this.planetUtils.readMaterials(planet);
+      } else if (planet.addJunkTick === 0) {
         const materials = this.planetUtils.getDefaultMaterials(
           (planet as LocatablePlanet).biome,
           planet,
@@ -626,6 +629,9 @@ export class GameObjects {
           }
           return existing;
         });
+      } else {
+        // After junk is added for other planet types, read materials from contract
+        planet.materials = this.planetUtils.readMaterials(planet);
       }
     }
     if (revealedLocation) {
@@ -1762,14 +1768,14 @@ export class GameObjects {
   }
 
   /**
-   * returns timestamp (seconds) that planet will reach percent% of energycap
+   * returns timestamp (seconds) that planet will reach percent% of populationCap
    * time may be in the past
    */
   public getEnergyCurveAtPercent(planet: Planet, percent: number): number {
-    const p1 = (percent / 100) * planet.energyCap;
-    const c = planet.energyCap;
-    const p0 = planet.energy;
-    const g = planet.energyGrowth;
+    const p1 = (percent / 100) * planet.populationCap;
+    const c = planet.populationCap;
+    const p0 = planet.population;
+    const g = planet.populationGrowth;
     const t0 = planet.lastUpdated;
 
     const t1 = (c / (4 * g)) * Math.log((p1 * (c - p0)) / (p0 * (c - p1))) + t0;

@@ -349,6 +349,8 @@ export function getMaterialName(materialId: MaterialType): string {
       return "BLACKALLOY";
     case 11:
       return "CRYSTAL";
+    case 12:
+      return "SOLAR ENERGY";
     default:
       return "Unknown";
   }
@@ -385,6 +387,8 @@ export function getMaterialScoreMultiplier(materialId: MaterialType): number {
       return 400;
     case 11:
       return 600;
+    case 12:
+      return 500; // Solar Energy - high value energy material
     default:
       return 100;
   }
@@ -399,13 +403,13 @@ export function getMaterialColor(materialId: MaterialType): string {
     case 3:
       return "#87CEEB"; // Light blue for windsteel
     case 4:
-      return "#f5bf2c"; // AURORIUM
+      return "#6df2b9"; // AURORIUM
     case 5:
-      return "#8b55c1ff"; // Violet for mycelium
+      return "#8b55c1"; // Violet for mycelium
     case 6:
       return "#FFD700"; // Gold for sunstone
     case 7:
-      return "#80e5f3ff"; // Light blue for glacite
+      return "#0345fc"; // Dark blue for glacite
     case 8:
       return "#696969"; // Gray for scrapium
     case 9:
@@ -413,7 +417,9 @@ export function getMaterialColor(materialId: MaterialType): string {
     case 10:
       return "#2F4F4F"; // Dark gray for blackalloy
     case 11:
-      return "#0df000df"; // Dark Green for Currapted Crystals
+      return "#0df000"; // Dark Green for Currapted Crystals
+    case 12:
+      return "#e39b00"; // Bright orange for solar energy (sun-like)
     default:
       return dfstyles.colors.subtext;
   }
@@ -443,6 +449,8 @@ export function getMaterialDescription(id: number): string {
       return "A forbidden dark alloy synthesized from corrupted zones. Dense, unstable, and extremely powerful in shadow-tech applications.";
     case 11:
       return "Crystallized corruption extracted from reality-warped biomes. Essential for ZK-reactors, entropy drives, and unstable modules.";
+    case 12:
+      return "Pure stellar energy harvested from quasar stars. Radiant, powerful, and essential for advanced energy systems, solar reactors, and star-powered engines.";
     default:
       return "Unknown material of mysterious origin.";
   }
@@ -580,9 +588,16 @@ export function PlanetMaterialsPane({
     );
   }
 
+  // For SUN planets, show SOLAR_ENERGY even if amount is 0 (if growth is enabled)
+  // For other planets, only show materials with amount > 0
   const activeMaterials =
     planet.materials?.filter(
-      (mat) => mat.materialId !== 0 && Number(mat.materialAmount) > 0,
+      (mat) =>
+        mat.materialId !== 0 &&
+        (Number(mat.materialAmount) > 0 ||
+          (planet.planetType === PlanetType.SUN &&
+            mat.materialId === 12 &&
+            mat.growth === true)),
     ) || [];
 
   const isFoundry = planet.planetType === PlanetType.RUINS;

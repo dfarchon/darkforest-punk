@@ -25,6 +25,7 @@ import type {
   PlanetRenderManagerType,
   WorldCoords,
   MaterialType,
+  RGBAVec,
 } from "@df/types";
 import {
   ArtifactRarity,
@@ -47,6 +48,7 @@ import { memes } from "../Memes";
 import type { Renderer } from "../Renderer";
 import type { GameGLManager } from "../WebGL/GameGLManager";
 import { getMaterialColor } from "@frontend/Panes/PlanetMaterialsPane";
+import dfstyles from "@frontend/Styles/dfstyles";
 
 const { whiteA, barbsA, gold } = engineConsts.colors;
 const { maxRadius } = engineConsts.planet;
@@ -305,11 +307,14 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       textAlpha,
     );
 
-    this.queueRings(
-      planet,
-      planet.location.coords,
-      renderInfo.radii.radiusWorld,
-    );
+    // Skip rings for SUN planets
+    if (planet.planetType !== PlanetType.SUN) {
+      this.queueRings(
+        planet,
+        planet.location.coords,
+        renderInfo.radii.radiusWorld,
+      );
+    }
 
     // render black domain
     if (planet.destroyed) {
@@ -329,15 +334,96 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     }
 
     if (hasOwner(planet)) {
-      color[3] = cA * 120;
+      let ringOffset = 0;
 
+      // Render silver ring (inside)
+      if (planet.silver > 0 && planet.silverCap > 0) {
+        const silverPct = Math.min(planet.silver / planet.silverCap, 1.0);
+        const silverRadius =
+          renderInfo.radii.radiusWorld * (1.1 - 0.01 * (ringOffset + 1));
+        const silverColorHex = dfstyles.colors.dfyellow;
+        const hexColor = silverColorHex.replace("#", "");
+        const r = parseInt(hexColor.slice(0, 2), 16);
+        const g = parseInt(hexColor.slice(2, 4), 16);
+        const b = parseInt(hexColor.slice(4, 6), 16);
+
+        // Base circle with lower alpha
+        const silverColorBase: RGBAVec = [r, g, b, cA * 120];
+        cR.queueCircleWorld(
+          planet.location.coords,
+          silverRadius,
+          silverColorBase,
+          0.5,
+        );
+
+        // Percentage circle with full alpha
+        const silverColorFull: RGBAVec = [r, g, b, cA * 255];
+        cR.queueCircleWorld(
+          planet.location.coords,
+          silverRadius,
+          silverColorFull,
+          2,
+          silverPct,
+        );
+
+        ringOffset++;
+      }
+
+      // Render material rings (inside, before population)
+      if (planet.materials && planet.materials.length > 0) {
+        for (const material of planet.materials) {
+          if (!material || material.materialAmount <= 0 || material.cap <= 0) {
+            continue;
+          }
+
+          const materialColor = getMaterialColor(
+            material.materialId as MaterialType,
+          );
+          // Convert hex color to RGB array (handle both #RRGGBB and #RRGGBBAA formats)
+          const hexColor = materialColor.replace("#", "");
+          const r = parseInt(hexColor.slice(0, 2), 16);
+          const g = parseInt(hexColor.slice(2, 4), 16);
+          const b = parseInt(hexColor.slice(4, 6), 16);
+
+          const materialPct = Math.min(
+            material.materialAmount / material.cap,
+            1.0,
+          );
+          const materialRadius =
+            renderInfo.radii.radiusWorld * (1.1 - 0.01 * (ringOffset + 1));
+
+          // Base circle with lower alpha
+          const materialColorBase: RGBAVec = [r, g, b, cA * 120];
+          cR.queueCircleWorld(
+            planet.location.coords,
+            materialRadius,
+            materialColorBase,
+            0.5,
+          );
+
+          // Percentage circle with full alpha
+          const materialColorFull: RGBAVec = [r, g, b, cA * 255];
+          cR.queueCircleWorld(
+            planet.location.coords,
+            materialRadius,
+            materialColorFull,
+            2,
+            materialPct,
+          );
+
+          ringOffset++;
+        }
+      }
+
+      // Render population ring (outermost)
+      color[3] = cA * 120;
       cR.queueCircleWorld(
         planet.location.coords,
         renderInfo.radii.radiusWorld * 1.1,
         color,
         0.5,
       );
-      const pct = planet.energy / planet.energyCap;
+      const pct = planet.population / planet.populationCap;
       color[3] = cA * 255;
       cR.queueCircleWorld(
         planet.location.coords,
@@ -400,7 +486,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
 
     /* draw text */
     if (!renderAtReducedQuality) {
-      this.queuePlanetEnergyText(
+      this.queuePlanetPopulationText(
         planet,
         planet.location.coords,
         renderInfo.radii.radiusWorld,
@@ -414,12 +500,12 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
         textAlpha,
       );
 
-      this.queuePlanetMaterialsText(
-        planet,
-        planet.location.coords,
-        renderInfo.radii.radiusWorld,
-        textAlpha,
-      );
+      // this.queuePlanetMaterialsText(
+      //   planet,
+      //   planet.location.coords,
+      //   renderInfo.radii.radiusWorld,
+      //   textAlpha,
+      // );
 
       this.queueArtifactIcon(
         planet,
@@ -1117,16 +1203,16 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     }
   }
 
-  // calculates energy in that is queued to leave planet
-  private getLockedEnergy(planet: Planet): number {
-    let lockedEnergy = 0;
+  // calculates population in that is queued to leave planet
+  private getLockedPopulation(planet: Planet): number {
+    let lockedPopulation = 0;
     for (const unconfirmedMove of planet.transactions?.getTransactions(
       isUnconfirmedMoveTx,
     ) ?? []) {
-      lockedEnergy += unconfirmedMove.intent.forces;
+      lockedPopulation += unconfirmedMove.intent.forces;
     }
 
-    return lockedEnergy;
+    return lockedPopulation;
   }
 
   // calculates attack value of mouse-drag action
@@ -1140,14 +1226,15 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       return undefined;
     }
 
-    let effectiveEnergy = fromPlanet.energy;
+    let effectivePopulation = fromPlanet.population;
     for (const unconfirmedMove of fromPlanet.transactions?.getTransactions(
       isUnconfirmedMoveTx,
     ) ?? []) {
-      effectiveEnergy -= unconfirmedMove.intent.forces;
+      effectivePopulation -= unconfirmedMove.intent.forces;
     }
     const shipsMoved =
-      (context.getForcesSending(fromPlanet.locationId) / 100) * effectiveEnergy;
+      (context.getForcesSending(fromPlanet.locationId) / 100) *
+      effectivePopulation;
 
     const myAtk: number = context.getEnergyArrivingForMove(
       fromPlanet.locationId,
@@ -1183,23 +1270,38 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
   ) {
     const {
       quasarRenderer: qR,
+      sunRenderer: sR,
       planetRenderer: pR,
-      spacetimeRipRenderer: sR,
+      spacetimeRipRenderer: spR,
       ruinsRenderer: rR,
       mineRenderer: mR,
     } = this.renderer;
 
     const { planetType } = planet;
+    const planetTypeNum = Number(planetType);
 
-    if (planetType === PlanetType.SILVER_MINE) {
+    // Check SUN first (planetType 6) - must be before SILVER_BANK (5) check
+    if (planetTypeNum === 6 || planetType === PlanetType.SUN) {
+      if (sR) {
+        sR.queueSun(planet, centerW, radiusW);
+      } else {
+        console.error("[PlanetRenderManager] sunRenderer is not available!");
+      }
+      return;
+    }
+
+    // Check other planet types
+    if (planetTypeNum === 2 || planetType === PlanetType.SILVER_MINE) {
       mR.queueMine(planet, centerW, radiusW);
-    } else if (planetType === PlanetType.TRADING_POST) {
-      sR.queueRip(planet, centerW, radiusW);
-    } else if (planetType === PlanetType.SILVER_BANK) {
+    } else if (planetTypeNum === 4 || planetType === PlanetType.TRADING_POST) {
+      spR.queueRip(planet, centerW, radiusW);
+    } else if (planetTypeNum === 5 || planetType === PlanetType.SILVER_BANK) {
+      // QUASAR (SILVER_BANK = 5)
       qR.queueQuasar(planet, centerW, radiusW);
-    } else if (planetType === PlanetType.RUINS) {
+    } else if (planetTypeNum === 3 || planetType === PlanetType.RUINS) {
       rR.queueRuins(planet, centerW, radiusW);
     } else {
+      // Default to regular planet renderer
       pR.queuePlanetBody(planet, centerW, radiusW);
     }
   }
@@ -1222,10 +1324,10 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     const { bonus } = engineConsts.colors;
 
     if (planet.bonus[0]) {
-      aR.queueAsteroid(planet, center, radius, bonus.energyCap);
+      aR.queueAsteroid(planet, center, radius, bonus.populationCap);
     }
     if (planet.bonus[1]) {
-      aR.queueAsteroid(planet, center, radius, bonus.energyGro);
+      aR.queueAsteroid(planet, center, radius, bonus.populationGro);
     }
     if (planet.bonus[2]) {
       aR.queueAsteroid(planet, center, radius, bonus.range);
@@ -1413,20 +1515,20 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       );
   }
 
-  private queuePlanetEnergyText(
+  private queuePlanetPopulationText(
     planet: Planet,
     center: WorldCoords,
     radius: number,
     alpha: number,
   ) {
     const { context: uiManager, textRenderer: tR } = this.renderer;
-    const energy = planet ? Math.ceil(planet.energy) : 0;
-    const lockedEnergy = this.getLockedEnergy(planet);
+    const population = planet ? Math.ceil(planet.population) : 0;
+    const lockedPopulation = this.getLockedPopulation(planet);
 
-    // construct base energy string
-    let energyString = energy <= 0 ? "" : formatNumber(energy);
-    if (lockedEnergy > 0) {
-      energyString += ` (-${formatNumber(lockedEnergy)})`;
+    // construct base population string
+    let populationString = population <= 0 ? "" : formatNumber(population);
+    if (lockedPopulation > 0) {
+      populationString += ` (-${formatNumber(lockedPopulation)})`;
     }
 
     const playerColor = hasOwner(planet) ? getOwnerColorVec(planet) : barbsA;
@@ -1435,10 +1537,10 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
 
     const textLoc: WorldCoords = {
       x: center.x,
-      y: center.y - 1.1 * radius - 0.75,
+      y: center.y - 1.22 * radius - 0.75,
     };
 
-    tR.queueTextWorld(energyString, textLoc, color);
+    tR.queueTextWorld(populationString, textLoc, color);
 
     // now display atk string
     const fromPlanet = uiManager.getMouseDownPlanet();
@@ -1457,7 +1559,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       if (
         uiManager.isOwnedByMe(planet) ||
         uiManager.inSameGuildRightNow(uiManager.getAccount(), planet.owner) ||
-        planet.energy === 0
+        planet.population === 0
       ) {
         atkString += ` (+${formatNumber(myAtk)})`;
       } else {
@@ -1479,7 +1581,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
 
   /**
    * Renders rings around planet that show how far sending the given percentage of this planet's
-   * energy would be able to travel.
+   * population would be able to travel.
    */
   drawRangeAtPercent(
     planet: LocatablePlanet,
@@ -1512,7 +1614,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
   queueRangeRings(planet: LocatablePlanet) {
     const { circleRenderer: cR, context, textRenderer: tR } = this.renderer;
     const {
-      range: { energy },
+      range: { population },
     } = engineConsts.colors;
     const { x, y } = planet.location.coords;
 
@@ -1534,8 +1636,9 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     }
 
     const percentForces = context.getForcesSending(planet.locationId); // [0, 100]
-    const forces = (percentForces / 100) * planet.energy;
-    const scaledForces = (percentForces * planet.energy) / planet.energyCap;
+    const forces = (percentForces / 100) * planet.population;
+    const scaledForces =
+      (percentForces * planet.population) / planet.populationCap;
     const range = getRange(
       planet,
       scaledForces,
@@ -1543,12 +1646,12 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     );
 
     if (range > 1) {
-      cR.queueCircleWorld({ x, y }, range, [...energy, 255], 1, 1, true);
+      cR.queueCircleWorld({ x, y }, range, [...population, 255], 1, 1, true);
 
       tR.queueTextWorld(
         `${formatNumber(forces)}`,
         { x, y: y + range },
-        [...energy, 255],
+        [...population, 255],
         0,
         TextAlign.Center,
         TextAnchor.Bottom,
@@ -1584,6 +1687,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       beltRenderer,
       mineRenderer,
       quasarRenderer,
+      sunRenderer,
       spacetimeRipRenderer,
       ruinsRenderer,
       ringRenderer,
@@ -1602,7 +1706,10 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     ringRenderer.flush();
     gl.disable(gl.DEPTH_TEST);
 
+    // Flush quasar and sun renderers
+    // Note: setUniforms is called automatically from within flush() by the child renderers
     quasarRenderer.flush();
+    sunRenderer.flush();
     blackDomainRenderer.flush();
   }
 }

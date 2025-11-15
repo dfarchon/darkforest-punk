@@ -1027,21 +1027,21 @@ export class GameUIManager extends EventEmitter {
         const to = mouseUpOverPlanet;
 
         // TODO: the following code block needs to be in a Planet class
-        let effectiveEnergy = from.energy;
+        let effectivePopulation = from.population;
         for (const unconfirmedMove of from.transactions?.getTransactions(
           isUnconfirmedMoveTx,
         ) ?? []) {
-          effectiveEnergy -= unconfirmedMove.intent.forces;
+          effectivePopulation -= unconfirmedMove.intent.forces;
         }
         const effPercent = Math.min(this.getForcesSending(from.locationId), 98);
-        let forces = Math.floor((effectiveEnergy * effPercent) / 100);
+        let forces = Math.floor((effectivePopulation * effPercent) / 100);
 
         // make it so you leave one force behind
         if (this.isSendingShip(mouseDownPlanet.locationId)) {
           tutorialManager.acceptInput(TutorialState.Spaceship);
           forces = 0;
-        } else if (forces >= from.energy) {
-          forces = from.energy - 1;
+        } else if (forces >= from.population) {
+          forces = from.population - 1;
           if (forces < 1) {
             return;
           }
@@ -1456,7 +1456,7 @@ export class GameUIManager extends EventEmitter {
         break;
       }
 
-      if (planet.owner === EMPTY_ADDRESS && planet.energy > 0) {
+      if (planet.owner === EMPTY_ADDRESS && planet.population > 0) {
         if (
           !this.getBooleanSetting(Setting.FoundPirates) &&
           this.getBooleanSetting(Setting.TutorialCompleted)

@@ -183,7 +183,14 @@ export type DepositArtifactArgs = [string, string]; // locationId, artifactId
 export type WithdrawArtifactArgs = [string, string]; // locationId, artifactId
 export type WhitelistArgs = [string, string]; // hashed whitelist key, recipient address
 
-export type PlanetTypeWeights = [number, number, number, number, number]; // relative frequencies of the 5 planet types
+export type PlanetTypeWeights = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+]; // relative frequencies of the 6 planet types (PLANET, ASTEROID_FIELD, FOUNDRY, SPACETIME_RIP, QUASAR, SUN)
 export type PlanetTypeWeightsByLevel = [
   PlanetTypeWeights,
   PlanetTypeWeights,
@@ -223,6 +230,7 @@ export interface ContractConstants {
   PERLIN_THRESHOLD_2: number;
   PERLIN_THRESHOLD_3: number;
   SPACE_TYPE_PLANET_LEVEL_LIMITS: number[];
+  SPACE_TYPE_PLANET_LEVEL_MIN_LIMITS: number[];
   SPACE_TYPE_PLANET_LEVEL_BONUS: number[];
 
   MAX_LEVEL_DIST: number[];

@@ -198,6 +198,9 @@ export const RendererType = {
   PlanetManager: 22 as RendererType,
   QuasarBody: 23 as RendererType,
   QuasarRay: 24 as RendererType,
+  Sun: 29 as RendererType,
+  SunBody: 30 as RendererType,
+  SunRay: 31 as RendererType,
   CaptureZone: 25 as RendererType,
   PinkZone: 26 as RendererType,
   BlueZone: 27 as RendererType,
@@ -276,6 +279,25 @@ export interface QuasarRendererType {
 
   /**
    * Draws all queued Quasars.
+   */
+  flush(): void;
+}
+
+export interface SunRendererType {
+  rendererType: RendererType;
+
+  /**
+   * The game calls the queue function when the entities should be put into a back buffer queue.
+   * The back buffer is used to contain information on the entities being drawn for later use in the flush function.
+   * The implementing renderer should contains its own back buffer.
+   * @param planet - an object that contains info about the current Sun planet
+   * @param centerW - represents the coordinates of the current Sun relative to the game world.
+   * @param radiusW - represents the radius of the Sun relative to the size of the game world.
+   */
+  queueSun(planet: Planet, centerW: WorldCoords, radiusW: number): void;
+
+  /**
+   * Draws all queued Suns.
    */
   flush(): void;
 }
@@ -967,6 +989,69 @@ export interface QuasarRayRendererType {
 
   /**
    * Draw all queued Quasar Rays
+   */
+  flush(): void;
+
+  setUniforms?(): void;
+}
+
+export interface SunBodyRendererType {
+  rendererType: RendererType;
+
+  /**
+   * The game calls the queue function when the entities should be put into a back buffer queue.
+   * The back buffer is used to contain information on the entities being drawn for later use in the flush function.
+   * The implementing renderer should contains its own back buffer.
+   * Used to Draw the body of the Sun
+   * @param planet - an object that contains info about the current Sun planet
+   * @param centerW - represents the coordinates of the current Sun relative to the game world.
+   * @param radiusW - represents the radius of the Sun relative to the size of the game world.
+   * @param z - z axis
+   * @param angle - the angle the body should be titled
+   */
+  queueSunBody(
+    planet: Planet,
+    centerW: WorldCoords,
+    radiusW: number,
+    z?: number,
+    angle?: number,
+  ): void;
+
+  /**
+   * Draw all queued Sun Bodies
+   */
+  flush(): void;
+
+  setUniforms?(): void;
+}
+
+export interface SunRayRendererType {
+  rendererType: RendererType;
+
+  /**
+   * The game calls the queue function when the entities should be put into a back buffer queue.
+   * The back buffer is used to contain information on the entities being drawn for later use in the flush function.
+   * The implementing renderer should contains its own back buffer.
+   * Used to draw the rays on the Sun.
+   * There are 2 rays one on top and one on the bottom
+   * @param planet - an object that contains info about the current Sun planet
+   * @param centerW - represents the coordinates of the current Sun relative to the game world.
+   * @param radiusW - represents the radius of the Sun relative to the size of the game world.
+   * @param z - z axis
+   * @param top - if the ray is ontop of the Sun
+   * @param angle - the angle the body should be titled
+   */
+  queueSunRay(
+    planet: Planet,
+    centerW: WorldCoords,
+    radiusW: number,
+    z?: number,
+    top?: boolean,
+    angle?: number,
+  ): void;
+
+  /**
+   * Draw all queued Sun Rays
    */
   flush(): void;
 

@@ -1229,12 +1229,16 @@ export class ContractsAPI extends EventEmitter {
         if (rawResult === undefined) {
           throw new Error("not set contracts constants yet");
         }
+        // Check if thresholds array has 6 elements (including SUN)
+        // If not, pad with 0 for SUN to maintain backward compatibility
+        const thresholds = rawResult.thresholds || [];
         const planetTypeWeights = [
-          rawResult.thresholds[0],
-          rawResult.thresholds[1],
-          rawResult.thresholds[2],
-          rawResult.thresholds[3],
-          rawResult.thresholds[4],
+          thresholds[0] || 0,
+          thresholds[1] || 0,
+          thresholds[2] || 0,
+          thresholds[3] || 0,
+          thresholds[4] || 0,
+          thresholds[5] || 0, // SUN (6th planet type) - default to 0 if not configured
         ];
         value.push(planetTypeWeights);
       }
@@ -1242,8 +1246,8 @@ export class ContractsAPI extends EventEmitter {
     }
 
     const defenseUpgrade: Upgrade = {
-      energyCapMultiplier: upgradeConfig.populationCapMultiplier,
-      energyGroMultiplier: upgradeConfig.populationGrowthMultiplier,
+      populationCapMultiplier: upgradeConfig.populationCapMultiplier,
+      populationGrowthMultiplier: upgradeConfig.populationGrowthMultiplier,
       rangeMultiplier: 100,
       speedMultiplier: 100,
       defMultiplier: upgradeConfig.defenseMultiplier,
@@ -1257,8 +1261,8 @@ export class ContractsAPI extends EventEmitter {
     ];
 
     const rangeUpgrade: Upgrade = {
-      energyCapMultiplier: upgradeConfig.populationCapMultiplier,
-      energyGroMultiplier: upgradeConfig.populationGrowthMultiplier,
+      populationCapMultiplier: upgradeConfig.populationCapMultiplier,
+      populationGrowthMultiplier: upgradeConfig.populationGrowthMultiplier,
       rangeMultiplier: upgradeConfig.rangeMultiplier,
       speedMultiplier: 100,
       defMultiplier: 100,
@@ -1272,8 +1276,8 @@ export class ContractsAPI extends EventEmitter {
     ];
 
     const speedUpgrade: Upgrade = {
-      energyCapMultiplier: upgradeConfig.populationCapMultiplier,
-      energyGroMultiplier: upgradeConfig.populationGrowthMultiplier,
+      populationCapMultiplier: upgradeConfig.populationCapMultiplier,
+      populationGrowthMultiplier: upgradeConfig.populationGrowthMultiplier,
       rangeMultiplier: 100,
       speedMultiplier: upgradeConfig.speedMultiplier,
       defMultiplier: 100,
@@ -1314,6 +1318,8 @@ export class ContractsAPI extends EventEmitter {
       PERLIN_THRESHOLD_2: spaceTypeConfig.perlinThresholds[1],
       PERLIN_THRESHOLD_3: spaceTypeConfig.perlinThresholds[2],
       SPACE_TYPE_PLANET_LEVEL_LIMITS: spaceTypeConfig.planetLevelLimits,
+      SPACE_TYPE_PLANET_LEVEL_MIN_LIMITS:
+        spaceTypeConfig.planetLevelMinLimits || [0, 0, 0, 0], // Fallback for backward compatibility
       SPACE_TYPE_PLANET_LEVEL_BONUS: spaceTypeConfig.planetLevelBonus,
 
       MAX_LEVEL_DIST: universeZoneConfig.borders.map((val) => Number(val)),

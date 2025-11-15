@@ -61,6 +61,7 @@ contract InitializeSystem is BaseSystem {
    * PLANET: no silver, no silverGrowth
    * FOUNDRY: no silver, no silverGrowth
    * QUASAR: double speed, no silverGrowth, 10 times silverCap, no populationGrowth, 5 times populationCap
+   * SUN: similar to QUASAR but optimized for SOLAR_ENERGY generation
    */
   function _initPlanetMetadataWithSpaceType(
     SpaceType spaceType,
@@ -69,6 +70,7 @@ contract InitializeSystem is BaseSystem {
     uint256 initialPopulationPercentage
   ) internal {
     uint256 defense = metadata.defense;
+    uint32 originalSilverGrowth = metadata.silverGrowth; // Save original silverGrowth before modifications
     metadata.defense /= 2;
     metadata.silverCap *= 2;
     PlanetMetadata.set(spaceType, PlanetType.ASTEROID_FIELD, level, metadata);
@@ -95,5 +97,12 @@ contract InitializeSystem is BaseSystem {
     metadata.populationGrowth = 0;
     PlanetMetadata.set(spaceType, PlanetType.QUASAR, level, metadata);
     PlanetInitialResource.set(spaceType, PlanetType.QUASAR, level, PlanetInitialResourceData(population / 2, 0));
+
+    // SUN: Similar to QUASAR but optimized for SOLAR_ENERGY generation
+    // Restore silverGrowth for materialsStorage (SOLAR_ENERGY) to grow (QUASAR has silverGrowth = 0, but SUN needs it)
+    // Note: silverGrowth is kept for materialsStorage growth calculation, but silver itself doesn't grow on SUN planets
+    metadata.silverGrowth = originalSilverGrowth; // Restore original silverGrowth for SOLAR_ENERGY growth
+    PlanetMetadata.set(spaceType, PlanetType.SUN, level, metadata);
+    PlanetInitialResource.set(spaceType, PlanetType.SUN, level, PlanetInitialResourceData(population / 2, 5000 * 1000));
   }
 }

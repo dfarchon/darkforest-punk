@@ -15,6 +15,11 @@ export class AttribManager {
   private gl: WebGL2RenderingContext;
 
   /**
+   * The WebGL program this attribute belongs to.
+   */
+  private program: WebGLProgram;
+
+  /**
    * AttribProps object for this attribute, containing name, dimension, and more.
    */
   private props: AttribProps;
@@ -48,6 +53,7 @@ export class AttribManager {
     enable = true,
   ) {
     this.gl = gl;
+    this.program = program;
     this.props = props;
 
     gl.useProgram(program); // should not be necessary, but just in case
@@ -84,6 +90,7 @@ export class AttribManager {
   /**
    * Send vertices [0, n - 1] through the buffer - bufferData(1) will send one vertex (only vertex #0)
    * @param n The number of vertices to send through the buffer.
+   * Note: The program should already be active when this is called from flush()
    */
   public bufferData(n: number): void {
     const { gl, loc } = this;

@@ -171,6 +171,12 @@ contract TestOnlySystem is BaseSystem {
           planet.setMaterial(materialType, currentAmount + materialAmount);
         }
       }
+      // If planet is a Sun, give 5K SOLAR_ENERGY
+      if (planet.planetType == PlanetType.SUN) {
+        uint256 solarEnergyAmount = 5000 * 1000; // 5K SOLAR_ENERGY with CONTRACT_PRECISION (1000)
+        uint256 currentAmount = planet.getMaterial(MaterialType.SOLAR_ENERGY);
+        planet.setMaterial(MaterialType.SOLAR_ENERGY, currentAmount + solarEnergyAmount);
+      }
     }
 
     planet.writeToStore();

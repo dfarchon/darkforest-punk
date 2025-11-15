@@ -41,6 +41,8 @@ import type {
   QuasarRayRendererType,
   QuasarRendererType,
   QueuedArrival,
+  SunBodyRendererType,
+  SunRendererType,
   RectRendererType,
   RingRendererType,
   RuinsRendererType,
@@ -81,6 +83,8 @@ import { QuasarBodyRenderer } from "./Entities/QuasarBodyRenderer";
 import { QuasarRayRenderer } from "./Entities/QuasarRayRenderer";
 import { QuasarRenderer } from "./Entities/QuasarRenderer";
 import { RectRenderer } from "./Entities/RectRenderer";
+import { SunBodyRenderer } from "./Entities/SunBodyRenderer";
+import { SunRenderer } from "./Entities/SunRenderer";
 import { RingRenderer } from "./Entities/RingRenderer";
 import { RuinsRenderer } from "./Entities/RuinsRenderer";
 import { SpaceRenderer } from "./Entities/SpaceRenderer";
@@ -111,6 +115,8 @@ import {
   isQuasarRayRenderer,
   isQuasarRenderer,
   isRectRenderer,
+  isSunBodyRenderer,
+  isSunRenderer,
   isRingRenderer,
   isRuinsRenderer,
   isSpaceRenderer,
@@ -252,6 +258,8 @@ export class Renderer {
   quasarRenderer: QuasarRendererType;
   quasarBodyRenderer: QuasarBodyRendererType;
   quasarRayRenderer: QuasarRayRendererType;
+  sunRenderer: SunRendererType;
+  sunBodyRenderer: SunBodyRendererType;
   spacetimeRipRenderer: SpacetimeRipRendererType;
   ruinsRenderer: RuinsRendererType;
 
@@ -302,6 +310,7 @@ export class Renderer {
       new MineBodyRenderer(this.glManager),
       new SpacetimeRipRenderer(this.glManager),
       new QuasarRenderer(this.glManager),
+      new SunRenderer(this.glManager),
       new RuinsRenderer(this.glManager),
 
       new AsteroidRenderer(this.glManager),
@@ -327,6 +336,7 @@ export class Renderer {
 
       new QuasarBodyRenderer(this.glManager),
       new QuasarRayRenderer(this.glManager),
+      new SunBodyRenderer(this.glManager),
       new CaptureZoneRenderer(this.glManager),
       new PinkZoneRenderer(this.glManager),
       new BlueZoneRenderer(this.glManager),
@@ -540,6 +550,14 @@ export class Renderer {
         console.log("Renderer is not a Quasar renderer");
         return false;
 
+      case RendererType.Sun:
+        if (isSunRenderer(renderer)) {
+          this.sunRenderer = renderer;
+          break;
+        }
+        console.log("Renderer is not a Sun renderer");
+        return false;
+
       case RendererType.Ruins:
         if (isRuinsRenderer(renderer)) {
           this.ruinsRenderer = renderer;
@@ -706,6 +724,14 @@ export class Renderer {
           break;
         }
         console.log("Renderer is not a QuasarRayRenderer");
+        return false;
+
+      case RendererType.SunBody:
+        if (isSunBodyRenderer(renderer)) {
+          this.sunBodyRenderer = renderer;
+          break;
+        }
+        console.log("Renderer is not a SunBodyRenderer");
         return false;
 
       case RendererType.CaptureZone:

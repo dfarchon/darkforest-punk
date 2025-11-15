@@ -32,6 +32,7 @@ function SingleUpgrade({
   getMultiplier: (u: Upgrade) => number;
 }) {
   const mult = getMultiplier(upgrade);
+  // eslint-disable-next-line no-nested-ternary
   const activeColor = mult > 100 ? dfgreen : mult < 100 ? dfred : subtext;
   const color = active ? activeColor : subtext;
 
@@ -45,8 +46,8 @@ function SingleUpgrade({
 }
 
 const getDefenseMult = (u: Upgrade) => u.defMultiplier;
-const getEnergyCapMult = (u: Upgrade) => u.energyCapMultiplier;
-const getEnergyGroMult = (u: Upgrade) => u.energyGroMultiplier;
+const getPopulationCapMult = (u: Upgrade) => u.populationCapMultiplier;
+const getPopulationGrowthMult = (u: Upgrade) => u.populationGrowthMultiplier;
 const getRangeMult = (u: Upgrade) => u.rangeMultiplier;
 const getSpeedMult = (u: Upgrade) => u.speedMultiplier;
 
@@ -97,13 +98,13 @@ export function UpgradeStatsView({
       <SingleUpgrade
         {...iconProps}
         icon={IconType.Energy}
-        getMultiplier={getEnergyCapMult}
+        getMultiplier={getPopulationCapMult}
       />
       <Spacer height={2} />
       <SingleUpgrade
         {...iconProps}
         icon={IconType.EnergyGrowth}
-        getMultiplier={getEnergyGroMult}
+        getMultiplier={getPopulationGrowthMult}
       />
       <SingleUpgrade
         {...iconProps}

@@ -33,10 +33,10 @@ export const hexifyBigIntNestedArray = (
  * returns stat of an upgrade given a stat index
  */
 export const getUpgradeStat = (upgrade: Upgrade, stat: StatIdx): number => {
-  if (stat === StatIdx.EnergyCap) {
-    return upgrade.energyCapMultiplier;
-  } else if (stat === StatIdx.EnergyGro) {
-    return upgrade.energyGroMultiplier;
+  if (stat === StatIdx.PopulationCap) {
+    return upgrade.populationCapMultiplier;
+  } else if (stat === StatIdx.PopulationGro) {
+    return upgrade.populationGrowthMultiplier;
   } else if (stat === StatIdx.Range) {
     return upgrade.rangeMultiplier;
   } else if (stat === StatIdx.Speed) {
@@ -44,7 +44,7 @@ export const getUpgradeStat = (upgrade: Upgrade, stat: StatIdx): number => {
   } else if (stat === StatIdx.Defense) {
     return upgrade.defMultiplier;
   } else {
-    return upgrade.energyCapMultiplier;
+    return upgrade.populationCapMultiplier;
   }
 };
 

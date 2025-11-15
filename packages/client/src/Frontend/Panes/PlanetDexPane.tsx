@@ -95,6 +95,12 @@ export function PlanetThumb({ planet }: { planet: Planet }) {
         <Icon type={IconType.Withdraw} />
       </StyledPlanetThumb>
     );
+  } else if (planet.planetType === PlanetType.SUN) {
+    return (
+      <StyledPlanetThumb iconColor={baseStr}>
+        <Icon type={IconType.Energy} />
+      </StyledPlanetThumb>
+    );
   }
 
   return (
@@ -221,7 +227,7 @@ export function PlanetDexPane({
       </PlanetLink>
     ),
     (planet: Planet) => <Sub>{planet.planetLevel}</Sub>,
-    (planet: Planet) => <Sub>{formatNumber(planet.energy)}</Sub>,
+    (planet: Planet) => <Sub>{formatNumber(planet.population)}</Sub>,
     (planet: Planet) => <Sub>{formatNumber(planet.silver)}</Sub>,
     (planet: Planet) => (
       <Sub style={{ fontSize: "0.75em", maxWidth: "150px" }}>
@@ -243,8 +249,8 @@ export function PlanetDexPane({
     },
     // level
     (a: Planet, b: Planet): number => b.planetLevel - a.planetLevel,
-    // energy
-    (a: Planet, b: Planet): number => b.energy - a.energy,
+    // population
+    (a: Planet, b: Planet): number => b.population - a.population,
     // silver
     (a: Planet, b: Planet): number => b.silver - a.silver,
     // artifacts

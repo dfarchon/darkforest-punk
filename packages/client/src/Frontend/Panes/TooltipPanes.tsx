@@ -182,8 +182,9 @@ export function SilverTooltipPane() {
 export function EnergyTooltipPane() {
   return (
     <>
-      <White>Energy:</White> allows you to make moves. Energy grows following an{" "}
-      <White>s-curve</White>, and grows fastest at <White>50% capacity</White>.
+      <White>Population:</White> allows you to make moves. Population grows
+      following an <White>s-curve</White>, and grows fastest at{" "}
+      <White>50% capacity</White>.
     </>
   );
 }
@@ -268,9 +269,9 @@ export function RangeTooltipPane() {
 export function MinEnergyTooltipPane() {
   return (
     <>
-      The minimum energy you need to send a move from this planet. <br />
+      The minimum population you need to send a move from this planet. <br />
       Moves incur a base cost of 5% of the planet&apos;s{" "}
-      <White>Energy Cap</White>.
+      <White>Population Cap</White>.
     </>
   );
 }
@@ -278,7 +279,7 @@ export function MinEnergyTooltipPane() {
 export function Time50TooltipPane() {
   return (
     <>
-      Time to <White>50%</White> of full energy.
+      Time to <White>50%</White> of full population.
     </>
   );
 }
@@ -286,8 +287,8 @@ export function Time50TooltipPane() {
 export function Time90TooltipPane() {
   return (
     <>
-      Time to <White>90%</White> of full energy. Since energy grows on an
-      s-curve, energy growth slows drastically by this point.
+      Time to <White>90%</White> of full population. Since population grows on
+      an s-curve, population growth slows drastically by this point.
     </>
   );
 }
@@ -295,8 +296,8 @@ export function Time90TooltipPane() {
 export function EnergyGrowthTooltipPane() {
   return (
     <>
-      <White>Energy Growth:</White> the maximum growth rate of this
-      planet&apos;s energy representing the rate at the middle of the{" "}
+      <White>Population Growth:</White> the maximum growth rate of this
+      planet&apos;s population representing the rate at the middle of the{" "}
       <White>s-curve</White>.
     </>
   );
@@ -369,7 +370,8 @@ export function BonusEnergyCapTooltipPane() {
   return (
     <>
       <Green>
-        This planet&apos;s <White>Energy Cap</White> has been randomly doubled!
+        This planet&apos;s <White>Population Cap</White> has been randomly
+        doubled!
       </Green>
     </>
   );
@@ -379,7 +381,7 @@ export function BonusEnergyGroTooltipPane() {
   return (
     <>
       <Green>
-        This planet&apos;s <White>Energy Growth</White> has been randomly
+        This planet&apos;s <White>Population Growth</White> has been randomly
         doubled!
       </Green>
     </>
@@ -738,6 +740,17 @@ const MaterialCorruptedCrystalTooltip = () => (
   </>
 );
 
+const MaterialSolarEnergyTooltip = () => (
+  <>
+    {getMaterialIcon(MaterialType.SOLAR_ENERGY, 24)}
+    <Colored color={getMaterialColor(MaterialType.SOLAR_ENERGY)}>
+      SOLAR ENERGY:
+    </Colored>{" "}
+    Pure energy harvested from SUN planets. Radiates with intense power,
+    essential for solar reactors, energy cores, and high-output power systems.
+  </>
+);
+
 export function TooltipContent({ name }: { name: TooltipName | undefined }) {
   if (name === TooltipName.SilverGrowth) {
     return <SilverGrowthTooltipPane />;
@@ -1007,6 +1020,9 @@ export function TooltipContent({ name }: { name: TooltipName | undefined }) {
   }
   if (name === TooltipName.MaterialCorruptedCrystal) {
     return <MaterialCorruptedCrystalTooltip />;
+  }
+  if (name === TooltipName.MaterialSolarEnergy) {
+    return <MaterialSolarEnergyTooltip />;
   }
 
   return <></>;

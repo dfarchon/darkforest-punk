@@ -95,7 +95,6 @@ import type {
   NetworkHealthSummary,
   PinkZone,
   Planet,
-  PlanetLevel,
   Player,
   QueuedArrival,
   Radii,
@@ -1546,12 +1545,12 @@ export class GameManager extends EventEmitter {
   }
 
   /**
-   * Gets the total amount of energy that lives on a planet that somebody owns.
+   * Gets the total amount of population that lives on a planet that somebody owns.
    */
   public getUniverseTotalEnergy(): number {
     return this.getAllOwnedPlanets().reduce(
       (totalSoFar: number, nextPlanet: Planet) =>
-        totalSoFar + nextPlanet.energy,
+        totalSoFar + nextPlanet.population,
       0,
     );
   }
@@ -1570,14 +1569,14 @@ export class GameManager extends EventEmitter {
   }
 
   /**
-   * Gets the total amount of energy that lives on planets that the given player owns.
+   * Gets the total amount of population that lives on planets that the given player owns.
    */
   public getEnergyOfPlayer(player: EthAddress): number {
     return this.getAllOwnedPlanets()
       .filter((planet) => planet.owner === player)
       .reduce(
         (totalSoFar: number, nextPlanet: Planet) =>
-          totalSoFar + nextPlanet.energy,
+          totalSoFar + nextPlanet.population,
         0,
       );
   }
@@ -3480,7 +3479,7 @@ export class GameManager extends EventEmitter {
   //       throw new Error("you can only capture planets you own");
   //     }
 
-  //     if (planet.energy < planet.energyCap * 0.8) {
+  //     if (planet.population < planet.populationCap * 0.8) {
   //       throw new Error("the planet needs >80% energy before capturing");
   //     }
 
@@ -6972,13 +6971,57 @@ export class GameManager extends EventEmitter {
   // }
 
   /**
+   * Filters out planets with level 0-2 in DEEP_SPACE and DEAD_SPACE before indexing to IndexedDB.
+   * This matches the contract logic which reverts planet initialization for these cases.
+   */
+  private filterInvalidPlanets(chunk: Chunk): Chunk {
+    const filteredPlanetLocations = chunk.planetLocations.filter(
+      (planetLocation) => {
+        const planetX = planetLocation.coords.x;
+        const planetY = planetLocation.coords.y;
+        const distFromOrigin = Math.sqrt(planetX ** 2 + planetY ** 2);
+
+        // Calculate space type and level to check if planet should be filtered
+        const spaceType = this.entityStore.spaceTypeFromPerlin(
+          planetLocation.perlin,
+          distFromOrigin,
+        );
+        const planetLevel = this.entityStore.planetLevelFromHexPerlin(
+          planetLocation.hash,
+          planetLocation.perlin,
+          distFromOrigin,
+        );
+
+        // Filter out level 0-2 planets in DEEP_SPACE and DEAD_SPACE
+        // This matches contract logic which reverts for these cases
+        if (
+          (spaceType === SpaceType.DEEP_SPACE ||
+            spaceType === SpaceType.DEAD_SPACE) &&
+          (planetLevel === 0 || planetLevel === 1 || planetLevel === 2)
+        ) {
+          return false; // Filter out this planet
+        }
+
+        return true; // Keep this planet
+      },
+    );
+
+    return {
+      ...chunk,
+      planetLocations: filteredPlanetLocations,
+    };
+  }
+
+  /**
    * Makes this game manager aware of a new chunk - which includes its location, size,
    * as well as all of the planets contained in that chunk. Causes the client to load
    * all of the information about those planets from the blockchain.
    */
   addNewChunk(chunk: Chunk): GameManager {
-    this.persistentChunkStore.addChunk(chunk, true);
-    for (const planetLocation of chunk.planetLocations) {
+    // Filter out invalid planets (level 0-2 in DEEP_SPACE/DEAD_SPACE) before saving to IndexedDB
+    const filteredChunk = this.filterInvalidPlanets(chunk);
+    this.persistentChunkStore.addChunk(filteredChunk, true);
+    for (const planetLocation of filteredChunk.planetLocations) {
       this.entityStore.addPlanetLocation(planetLocation);
 
       if (this.entityStore.isPlanetInContract(planetLocation.hash)) {
@@ -7030,8 +7073,10 @@ export class GameManager extends EventEmitter {
     );
     const planetIdsToUpdate: LocationId[] = [];
     for (const chunk of chunks) {
-      this.persistentChunkStore.addChunk(chunk, true);
-      for (const planetLocation of chunk.planetLocations) {
+      // Filter out invalid planets (level 0-2 in DEEP_SPACE/DEAD_SPACE) before saving to IndexedDB
+      const filteredChunk = this.filterInvalidPlanets(chunk);
+      this.persistentChunkStore.addChunk(filteredChunk, true);
+      for (const planetLocation of filteredChunk.planetLocations) {
         this.entityStore.addPlanetLocation(planetLocation);
 
         if (this.entityStore.isPlanetInContract(planetLocation.hash)) {
@@ -7205,8 +7250,8 @@ export class GameManager extends EventEmitter {
     arrivingEnergy: number,
     abandoning = false,
     upgrade: Upgrade = {
-      energyCapMultiplier: 100,
-      energyGroMultiplier: 100,
+      populationCapMultiplier: 100,
+      populationGrowthMultiplier: 100,
       rangeMultiplier: 100,
       speedMultiplier: 100,
       defMultiplier: 100,
@@ -7219,15 +7264,18 @@ export class GameManager extends EventEmitter {
     const upgradedPlanet = {
       ...from,
       range: (from.range * upgrade.rangeMultiplier) / 100,
-      energyCap: (from.energyCap * upgrade.energyCapMultiplier) / 100,
+      populationCap:
+        (from.populationCap * upgrade.populationCapMultiplier) / 100,
     };
     const dist = this.getDist(fromId, toId);
     const range = upgradedPlanet.range * this.getRangeBuff(abandoning);
     const rangeSteps = dist / range;
 
-    const arrivingProp = arrivingEnergy / upgradedPlanet.energyCap + 0.05;
+    const arrivingProp = arrivingEnergy / upgradedPlanet.populationCap + 0.05;
 
-    return arrivingProp * Math.pow(2, rangeSteps) * upgradedPlanet.energyCap;
+    return (
+      arrivingProp * Math.pow(2, rangeSteps) * upgradedPlanet.populationCap
+    );
   }
 
   /**
@@ -7277,7 +7325,7 @@ export class GameManager extends EventEmitter {
     }
 
     const scale = (1 / 2) ** (dist / range);
-    let ret = scale * sentEnergy - 0.05 * from.energyCap;
+    let ret = scale * sentEnergy - 0.05 * from.populationCap;
 
     // Apply spaceship attack bonus if attacking an enemy and spaceship bonuses are provided
     if (

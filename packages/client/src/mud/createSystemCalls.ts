@@ -14,12 +14,15 @@ import type { SetupNetworkResult } from "./setupNetwork";
 export type SystemCalls = ReturnType<typeof createSystemCalls>;
 
 // PlanetType Enum
+// Note: This enum matches contract enum values (excluding UNKNOWN=0)
+// Contract: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6
 export enum PlanetType {
-  PLANET = 0,
-  ASTEROID_FIELD = 1,
-  FOUNDRY = 2,
-  SPACETIME_RIP = 3,
-  QUASAR = 4,
+  PLANET = 1,
+  ASTEROID_FIELD = 2,
+  FOUNDRY = 3,
+  SPACETIME_RIP = 4,
+  QUASAR = 5,
+  SUN = 6,
 }
 
 // SpaceType Enum

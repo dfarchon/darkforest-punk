@@ -33,8 +33,8 @@ export type HashConfig = {
 };
 
 export const enum StatIdx {
-  EnergyCap = 0,
-  EnergyGro = 1,
+  PopulationCap = 0,
+  PopulationGro = 1,
   Range = 2,
   Speed = 3,
   Defense = 4,

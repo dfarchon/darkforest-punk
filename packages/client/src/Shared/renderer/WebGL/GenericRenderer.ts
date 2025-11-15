@@ -207,15 +207,22 @@ export class GenericRenderer<
     }
 
     const { gl } = this.manager;
+
+    // Activate the program first - this is critical for attribute binding
     gl.useProgram(this.program);
 
+    // Set uniforms while program is active
     this.setUniforms();
 
+    // Bind buffers for all attributes - program must be active for vertexAttribPointer to work correctly
     for (const attrib in this.attribManagers) {
       this.attribManagers[attrib].bufferData(this.verts);
     }
 
-    // draw
+    // Ensure program is still active before drawing (shouldn't be necessary but defensive)
+    gl.useProgram(this.program);
+
+    // draw - all buffers should now be bound to their enabled attributes
     gl.drawArrays(drawMode, 0, this.verts);
 
     this.verts = 0;

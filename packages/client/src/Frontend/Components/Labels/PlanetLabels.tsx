@@ -89,21 +89,27 @@ export const SilverCapText = ({ planet }: { planet: Planet | undefined }) => (
   <StatText planet={planet} getStat={getSilverCap} />
 );
 
-const getEnergy = (p: Planet) => p.energy;
-export const EnergyText = ({ planet }: { planet: Planet | undefined }) => (
-  <StatText planet={planet} getStat={getEnergy} />
+const getPopulation = (p: Planet) => p.population;
+export const PopulationText = ({ planet }: { planet: Planet | undefined }) => (
+  <StatText planet={planet} getStat={getPopulation} />
 );
 
-const getEnergyCap = (p: Planet) => p.energyCap;
-export const EnergyCapText = ({ planet }: { planet: Planet | undefined }) => (
-  <StatText planet={planet} getStat={getEnergyCap} />
-);
+const getPopulationCap = (p: Planet) => p.populationCap;
+export const PopulationCapText = ({
+  planet,
+}: {
+  planet: Planet | undefined;
+}) => <StatText planet={planet} getStat={getPopulationCap} />;
 
-export function PlanetEnergyLabel({ planet }: { planet: Planet | undefined }) {
+export function PlanetPopulationLabel({
+  planet,
+}: {
+  planet: Planet | undefined;
+}) {
   return (
     <span>
-      <EnergyText planet={planet} /> <Subber>/</Subber>{" "}
-      <EnergyCapText planet={planet} />
+      <PopulationText planet={planet} /> <Subber>/</Subber>{" "}
+      <PopulationCapText planet={planet} />
     </span>
   );
 }
@@ -148,12 +154,12 @@ export const SpeedText = ({
   buff?: number;
 }) => <StatText planet={planet} getStat={getSpeed} buff={buff} />;
 
-const getEnergyGrowth = (p: Planet) => p.energyGrowth;
-export const EnergyGrowthText = ({
+const getPopulationGrowth = (p: Planet) => p.populationGrowth;
+export const PopulationGrowthText = ({
   planet,
 }: {
   planet: Planet | undefined;
-}) => <GrowthText planet={planet} getStat={getEnergyGrowth} />;
+}) => <GrowthText planet={planet} getStat={getPopulationGrowth} />;
 
 const getSilverGrowth = (p: Planet) => p.silverGrowth;
 export const SilverGrowthText = ({

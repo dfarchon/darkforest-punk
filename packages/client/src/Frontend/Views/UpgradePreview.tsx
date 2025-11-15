@@ -106,10 +106,10 @@ const StatRowFilled = ({
     }
 
     let mult = 1;
-    if (stat === "energyCap") {
-      mult = upgrade.energyCapMultiplier / 100;
-    } else if (stat === "energyGrowth") {
-      mult = upgrade.energyGroMultiplier / 100;
+    if (stat === "populationCap") {
+      mult = upgrade.populationCapMultiplier / 100;
+    } else if (stat === "populationGrowth") {
+      mult = upgrade.populationGrowthMultiplier / 100;
     } else if (stat === "range") {
       mult = upgrade.rangeMultiplier / 100;
     } else if (stat === "speed") {
@@ -182,8 +182,8 @@ export function UpgradePreview({
   if (cantUpgrade) {
     upgrade = {
       defMultiplier: 100,
-      energyCapMultiplier: 100,
-      energyGroMultiplier: 100,
+      populationCapMultiplier: 100,
+      populationGrowthMultiplier: 100,
       rangeMultiplier: 100,
       speedMultiplier: 100,
     };
@@ -196,14 +196,14 @@ export function UpgradePreview({
       <StatRowFilled
         planet={planet}
         upgrade={upgrade}
-        stat="energyCap"
-        title="Energy Cap"
+        stat="populationCap"
+        title="Population Cap"
       />
       <StatRowFilled
         planet={planet}
         upgrade={upgrade}
-        stat="energyGrowth"
-        title="Energy Growth"
+        stat="populationGrowth"
+        title="Population Growth"
       />
       <StatRowFilled
         planet={planet}

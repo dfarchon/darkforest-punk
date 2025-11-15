@@ -36,6 +36,7 @@ const getMaterialImagePath = (materialId: MaterialType): string => {
     9: "/icons/Materials/9 Pyrosteel.png",
     10: "/icons/Materials/10 Blackalloy.png",
     11: "/icons/Materials/11 Crystall.png",
+    12: "/icons/Materials/12 Solar Energy.png",
   };
 
   return materialImages[materialId] || "/img/404-text.png";

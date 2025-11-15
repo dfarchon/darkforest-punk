@@ -210,10 +210,10 @@ function ResourceBar({
         return `${formatNumber(materialValue)}`;
       }
 
-      // SILVER or ENERGY
+      // SILVER or POPULATION
       const resource = isSilver
         ? (selected as Planet).silver
-        : (selected as Planet).energy;
+        : (selected as Planet).population;
 
       const resourceValue = (val / 100) * resource;
 
@@ -229,7 +229,7 @@ function ResourceBar({
     if (isSilver) {
       return dfstyles.colors.dfyellow;
     }
-    return dfstyles.colors.dfblue;
+    return dfstyles.colors.text; // White for population
   };
 
   const getResourceIcon = () => {

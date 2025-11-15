@@ -6,8 +6,8 @@ import type { Abstract } from "./utility";
  * planet.
  */
 export type Upgrade = {
-  energyCapMultiplier: number;
-  energyGroMultiplier: number;
+  populationCapMultiplier: number;
+  populationGrowthMultiplier: number;
   rangeMultiplier: number;
   speedMultiplier: number;
   defMultiplier: number;

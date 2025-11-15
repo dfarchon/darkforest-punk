@@ -92,7 +92,7 @@ export function PlanetIcons({ planet }: { planet: Planet | undefined }) {
 
   return (
     <StyledPlanetIcons>
-      {planet.owner === EMPTY_ADDRESS && planet.energy > 0 && (
+      {planet.owner === EMPTY_ADDRESS && planet.population > 0 && (
         <TooltipTrigger name={TooltipName.Pirates}>
           <Icon type={IconType.Pirates} />
         </TooltipTrigger>
@@ -107,12 +107,12 @@ export function PlanetIcons({ planet }: { planet: Planet | undefined }) {
           <Icon type={IconType.SilverProd} />
         </TooltipTrigger>
       )}
-      {bonuses[StatIdx.EnergyCap] && (
+      {bonuses[StatIdx.PopulationCap] && (
         <TooltipTrigger name={TooltipName.BonusEnergyCap}>
           <Icon type={IconType.Energy} />
         </TooltipTrigger>
       )}
-      {bonuses[StatIdx.EnergyGro] && (
+      {bonuses[StatIdx.PopulationGro] && (
         <TooltipTrigger name={TooltipName.BonusEnergyGro}>
           <Icon type={IconType.EnergyGrowth} />
         </TooltipTrigger>

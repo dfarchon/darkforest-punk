@@ -10,7 +10,7 @@ import type {
   QueuedArrival,
   Upgrade,
 } from "@df/types";
-import { getMaxMaterialType, PlanetType } from "@df/types";
+import { getMaxMaterialType, MaterialType, PlanetType } from "@df/types";
 
 import type { ContractConstants } from "../../_types/darkforest/api/ContractsAPITypes";
 import type { GuildUtils } from "./GuildUtils";
@@ -62,6 +62,11 @@ const getSilverOverTick = (
     return planet.silver;
   }
 
+  // SUN planets don't grow silver, only materialsStorage (SOLAR_ENERGY) grows
+  if (planet.planetType === PlanetType.SUN) {
+    return planet.silver;
+  }
+
   if (planet.silver > planet.silverCap) {
     return planet.silverCap;
   }
@@ -99,21 +104,57 @@ const getMaterialsOverTick = (
   // Update materials growth, starting from index 1 (skipping index 0 which is UNKNOWN)
   for (let i = 1; i <= getMaxMaterialType(); i++) {
     // Find the material in the array by materialId, not by array index
-    const materialIndex = updatedMaterials.findIndex(
+    let materialIndex = updatedMaterials.findIndex(
       (mat) => mat.materialId === i,
     );
 
-    if (materialIndex !== -1 && updatedMaterials[materialIndex]) {
-      const material = updatedMaterials[materialIndex];
+    // If material doesn't exist in array yet, add it (for SOLAR_ENERGY on SUN planets)
+    if (materialIndex === -1) {
+      // For SUN planets, SOLAR_ENERGY should have growth enabled by default
+      const isSolarEnergyOnSun =
+        planet.planetType === PlanetType.SUN && i === MaterialType.SOLAR_ENERGY;
+      updatedMaterials.push({
+        materialId: i as MaterialType,
+        materialAmount: 0,
+        cap: planet.silverCap,
+        growthRate: planet.silverGrowth / (Number(i) * 2),
+        growth: isSolarEnergyOnSun && planet.silverGrowth > 0, // Enable growth for SOLAR_ENERGY on SUN planets
+        lastUpdateTick: planet.lastUpdated,
+      });
+      materialIndex = updatedMaterials.length - 1;
+    }
 
-      // Only update if material has growth enabled
-      if (material.growth && material.materialAmount !== undefined) {
-        const amount = material.materialAmount;
-        const grown = tickElapsed * material.growthRate;
+    if (materialIndex !== -1 && updatedMaterials[materialIndex]) {
+      let material = updatedMaterials[materialIndex];
+
+      // For SUN planets, ensure SOLAR_ENERGY has growth enabled
+      if (
+        planet.planetType === PlanetType.SUN &&
+        material.materialId === MaterialType.SOLAR_ENERGY &&
+        planet.silverGrowth > 0
+      ) {
+        // Ensure growth is enabled and growth rate is correct
+        material = {
+          ...material,
+          growth: true,
+          growthRate:
+            planet.silverGrowth / (Number(MaterialType.SOLAR_ENERGY) * 2),
+        };
+        updatedMaterials[materialIndex] = material;
+      }
+
+      // Only update if material has growth enabled (use updated material)
+      const currentMaterial = updatedMaterials[materialIndex];
+      if (
+        currentMaterial.growth &&
+        currentMaterial.materialAmount !== undefined
+      ) {
+        const amount = currentMaterial.materialAmount;
+        const grown = tickElapsed * currentMaterial.growthRate;
 
         updatedMaterials[materialIndex] = {
-          ...material,
-          materialAmount: Math.min(amount + grown, material.cap),
+          ...currentMaterial,
+          materialAmount: Math.min(amount + grown, currentMaterial.cap),
         };
       }
     }
@@ -122,17 +163,17 @@ const getMaterialsOverTick = (
   return updatedMaterials;
 };
 
-const getEnergyAtTick = (planet: Planet, atTick: number): number => {
-  if (planet.energy === 0) {
+const getPopulationAtTick = (planet: Planet, atTick: number): number => {
+  if (planet.population === 0) {
     return 0;
   }
   if (!hasOwner(planet)) {
-    return planet.energy;
+    return planet.population;
   }
 
   if (planet.planetType === PlanetType.SILVER_BANK) {
-    if (planet.energy > planet.energyCap) {
-      return planet.energyCap;
+    if (planet.population > planet.populationCap) {
+      return planet.populationCap;
     }
   }
 
@@ -143,11 +184,13 @@ const getEnergyAtTick = (planet: Planet, atTick: number): number => {
   }
 
   const denominator =
-    Math.exp((-4 * planet.energyGrowth * tickElapsed) / planet.energyCap) *
-      (planet.energyCap / planet.energy - 1) +
+    Math.exp(
+      (-4 * planet.populationGrowth * tickElapsed) / planet.populationCap,
+    ) *
+      (planet.populationCap / planet.population - 1) +
     1;
 
-  return planet.energyCap / denominator;
+  return planet.populationCap / denominator;
 };
 
 export const updatePlanetToTick = (
@@ -168,7 +211,7 @@ export const updatePlanetToTick = (
   // if (planet.pausers === 0) {
   planet.silver = getSilverOverTick(planet, planet.lastUpdated, atTick);
 
-  planet.energy = getEnergyAtTick(planet, atTick);
+  planet.population = getPopulationAtTick(planet, atTick);
 
   planet.materials = getMaterialsOverTick(planet, planet.lastUpdated, atTick);
 
@@ -199,14 +242,14 @@ export const applyUpgrade = (
   unApply = false,
 ) => {
   if (unApply) {
-    planet.speed /= upgrade.energyCapMultiplier / 100;
-    planet.energyGrowth /= upgrade.energyGroMultiplier / 100;
+    planet.speed /= upgrade.populationCapMultiplier / 100;
+    planet.populationGrowth /= upgrade.populationGrowthMultiplier / 100;
     planet.range /= upgrade.rangeMultiplier / 100;
     planet.speed /= upgrade.speedMultiplier / 100;
     planet.defense /= upgrade.defMultiplier / 100;
   } else {
-    planet.speed *= upgrade.energyCapMultiplier / 100;
-    planet.energyGrowth *= upgrade.energyGroMultiplier / 100;
+    planet.speed *= upgrade.populationCapMultiplier / 100;
+    planet.populationGrowth *= upgrade.populationGrowthMultiplier / 100;
     planet.range *= upgrade.rangeMultiplier / 100;
     planet.speed *= upgrade.speedMultiplier / 100;
     planet.defense *= upgrade.defMultiplier / 100;
@@ -266,38 +309,38 @@ export const arrive = (
 
   if (arrival.player !== toPlanet.owner && !inSameGuild) {
     if (
-      toPlanet.energy >
+      toPlanet.population >
       Math.floor(
         (energyArriving * CONTRACT_PRECISION * 100) / toPlanet.defense,
       ) /
         CONTRACT_PRECISION
     ) {
       // attack reduces target planet's garrison but doesn't conquer it
-      toPlanet.energy -=
+      toPlanet.population -=
         Math.floor(
           (energyArriving * CONTRACT_PRECISION * 100) / toPlanet.defense,
         ) / CONTRACT_PRECISION;
     } else {
       // conquers planet
       toPlanet.owner = arrival.player;
-      toPlanet.energy =
+      toPlanet.population =
         energyArriving -
         Math.floor(
-          (toPlanet.energy * CONTRACT_PRECISION * toPlanet.defense) / 100,
+          (toPlanet.population * CONTRACT_PRECISION * toPlanet.defense) / 100,
         ) /
           CONTRACT_PRECISION;
     }
   } else {
     // moving between my own planets
-    toPlanet.energy += energyArriving;
+    toPlanet.population += energyArriving;
   }
 
   if (
     toPlanet.planetType === PlanetType.SILVER_BANK
     //  || toPlanet.pausers !== 0
   ) {
-    if (toPlanet.energy > toPlanet.energyCap) {
-      toPlanet.energy = toPlanet.energyCap;
+    if (toPlanet.population > toPlanet.populationCap) {
+      toPlanet.population = toPlanet.populationCap;
     }
   }
 
@@ -315,10 +358,10 @@ export const arrive = (
 
   if (arrivingArtifact) {
     // if (arrivingArtifact.artifactType === ArtifactType.ShipMothership) {
-    //   if (toPlanet.energyGroDoublers === 0) {
-    //     toPlanet.energyGrowth *= 2;
+    //   if (toPlanet.populationGroDoublers === 0) {
+    //     toPlanet.populationGrowth *= 2;
     //   }
-    //   toPlanet.energyGroDoublers++;
+    //   toPlanet.populationGroDoublers++;
     // } else if (arrivingArtifact.artifactType === ArtifactType.ShipWhale) {
     //   if (toPlanet.silverGroDoublers === 0) {
     //     toPlanet.silverGrowth *= 2;

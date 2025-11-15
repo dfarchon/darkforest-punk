@@ -108,6 +108,12 @@ contract PlanetJunkSystem is BaseSystem {
       for (uint256 i; i < allowed.length; i++) {
         planet.initMaterial(allowed[i]);
       }
+    } else if (planet.planetType == PlanetType.SUN) {
+      // Initialize SOLAR_ENERGY for SUN planets
+      MaterialType[] memory allowed = PlanetLib.allowedMaterialsForPlanetType(planet.planetType);
+      for (uint256 i; i < allowed.length; i++) {
+        planet.initMaterial(allowed[i]);
+      }
     }
   }
 

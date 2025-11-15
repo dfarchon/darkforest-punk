@@ -79,6 +79,7 @@ export const PlanetType = {
   RUINS: 3 as PlanetType,
   TRADING_POST: 4 as PlanetType,
   SILVER_BANK: 5 as PlanetType,
+  SUN: 6 as PlanetType,
 } as const;
 
 /**
@@ -91,6 +92,7 @@ export const PlanetTypeNames = {
   [PlanetType.RUINS]: "Foundry",
   [PlanetType.TRADING_POST]: "Spacetime Rip",
   [PlanetType.SILVER_BANK]: "Quasar",
+  [PlanetType.SUN]: "Sun",
 } as const;
 /**
  * Abstract type representing a planet flag type.
@@ -121,7 +123,7 @@ export const PlanetFlagTypeNames = {
 
 /**
  * A list of five flags, indicating whether the planet has an attached comet
- * doubling each of five stats: (in order) [energyCap, energyGrowth, range,
+ * doubling each of five stats: (in order) [populationCap, populationGrowth, range,
  * speed, defense]
  */
 export type PlanetBonus = [
@@ -180,7 +182,8 @@ export type MaterialType =
   | 8 // SCRAPIUM
   | 9 // PYROSTEEL
   | 10 // BLACKALLOY
-  | 11; // CORRUPTED_CRYSTAL
+  | 11 // CORRUPTED_CRYSTAL
+  | 12; // SOLAR_ENERGY
 
 export const MaterialType = {
   UNKNOWN: 0 as MaterialType,
@@ -195,6 +198,7 @@ export const MaterialType = {
   PYROSTEEL: 9 as MaterialType,
   BLACKALLOY: 10 as MaterialType,
   CORRUPTED_CRYSTAL: 11 as MaterialType,
+  SOLAR_ENERGY: 12 as MaterialType,
 } as const;
 
 // Utility function to get the maximum MaterialType value
@@ -208,6 +212,7 @@ export type Materials = {
   cap: number;
   growthRate: number;
   growth: boolean;
+  lastUpdateTick?: number;
 };
 
 export type Planet = {
@@ -222,8 +227,8 @@ export type Planet = {
   planetType: PlanetType;
   isHomePlanet: boolean; // NOTE: default is false
 
-  energyCap: number;
-  energyGrowth: number;
+  populationCap: number;
+  populationGrowth: number;
 
   silverCap: number;
   silverGrowth: number;
@@ -232,7 +237,7 @@ export type Planet = {
   defense: number;
   speed: number;
 
-  energy: number;
+  population: number;
   silver: number;
 
   // spaceJunk: number;
@@ -278,7 +283,7 @@ export type Planet = {
 
   bonus: PlanetBonus;
   // pausers: number;
-  energyGroDoublers: number;
+  populationGroDoublers: number;
   silverGroDoublers: number;
   // invader?: EthAddress;
   // capturer?: EthAddress;

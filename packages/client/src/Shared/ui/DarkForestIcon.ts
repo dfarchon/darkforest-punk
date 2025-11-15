@@ -1,5 +1,5 @@
 import type { Abstract } from "@df/types";
-import { css, LitElement, nothing, svg, unsafeCSS } from "lit";
+import { css, html, LitElement, nothing, svg, unsafeCSS } from "lit";
 
 import * as dfstyles from "./styles";
 
@@ -201,19 +201,22 @@ export class DarkForestIcon extends LitElement {
 */
 
 function EnergyIcon() {
-  return svg`
-    <svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 512 512">
-      <path d="M352 0l-288 288h176l-80 224 288-288h-176z" />
-    </svg>
+  return html`
+    <img
+      src="/icons/population/PopulationGrowthCapIcon.png"
+      alt="Population Cap"
+      style="width: 100%; height: 100%; object-fit: contain;"
+    />
   `;
 }
 
 function EnergyGrowthIcon() {
-  return svg`
-    <svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 512 512">
-      <path d="M251.6,164.4L416,0l-75,210H234.8L251.6,164.4z M407.4,224L284.2,343.4L224,512l288-288H407.4z" />
-      <path d="M288,0L0,288h176L96,512l288-288H208L288,0z" />
-    </svg>
+  return html`
+    <img
+      src="/icons/population/PopulationGrowthIcon.png"
+      alt="Population Growth"
+      style="width: 100%; height: 100%; object-fit: contain;"
+    />
   `;
 }
 
