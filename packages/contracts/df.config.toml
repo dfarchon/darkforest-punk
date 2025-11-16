@@ -6,7 +6,7 @@ b_radius = 100000
 number = 1
 
 [entry_fee]
-value = 1000000000000
+value = 0 # 1000000000000
 
 [artifact_nft]
 address = "0x0000000000000000000000000000000000000000"
@@ -119,12 +119,12 @@ f_perlin_mirror_y = 0
 rate = 1
 
 [inner_circle]
-a_radius = 75000
-b_radiusx1000 = 75000000
+a_radius = 0 #75000
+b_radiusx1000 = 0 #75000000
 c_speed = 87
 
 [guild_config]
-a_create_fee = 5000000000000000  # 0.005 ETH
+a_create_fee = 1000000000000000  # 0.001 ETH
 b_max_members = 6
 c_cooldown_ticks=14400  # 14400 seconds
 # c_cooldown_ticks = 60   # 60 seconds
@@ -173,7 +173,7 @@ c_ABANDON_RANGE_CHANGE_PERCENT = 150
 # Total amount of space junk a player can take on. This can be overridden at runtime by updating this value for a specific player in storage.
 # b_SPACE_JUNK_LIMIT = 15000
 
-d_SPACE_JUNK_FREE_ALLOCATION = 1 # 1 means 1000 SPACE_JUNK
+d_SPACE_JUNK_FREE_ALLOCATION = 100000 # 1 means 1000 SPACE_JUNK
 e_SPACE_JUNK_LINEAR_MIN_PURCHASE = 2
 f_SPACE_JUNK_LINEAR_MAX_PURCHASE = 8
 g_SPACE_JUNK_LINEAR_BASE_PRICE = 1000000000000000
