@@ -13,6 +13,7 @@
 
 import {
   garnet,
+  pyrope,
   type MUDChain,
   mudFoundry,
   redstone,
@@ -93,6 +94,7 @@ export const supportedChains: MUDChain[] = [
   mudFoundry,
   redstone,
   garnet,
+  pyrope,
   baseSepolia,
   base,
   optimism,
