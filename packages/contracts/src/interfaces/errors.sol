@@ -54,10 +54,13 @@ interface Errors {
   error PlanetNotAvailable(); // 0xa7d5125d
   error PlanetNotInitialized(); // 0xcfd4ee18
   error PlanetLevelTooLow(); // 0x504f5026
+  error PlanetAlreadyHasStarbase(); // 0xfa812621
+  error StarbaseTooFarFromSource(); // 0x7eafff19
 
   // reveal system
   error InvalidRevealProof(); // 0x5d655004
   error RevealTooOften(); // 0xbdbe7784
+  error RevealStarBaseTooOften(); // 0xdf8cbee5
 
   // artifact system
   error InvalidProspectTarget(); // 0x341e4b4d

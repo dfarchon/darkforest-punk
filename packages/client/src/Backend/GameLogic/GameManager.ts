@@ -37,6 +37,11 @@ import {
   isUnconfirmedCapturePlanetTx,
   isUnconfirmedCraftSpaceshipTx,
   isUnconfirmedCraftModuleTx,
+  isUnconfirmedCreateStarBaseTx,
+  isUnconfirmedInstallModuleTx,
+  isUnconfirmedInstallStarbaseModuleTx,
+  isUnconfirmedUninstallModuleTx,
+  isUnconfirmedUninstallStarbaseModuleTx,
   isUnconfirmedUpgradeFoundryTx,
   isUnconfirmedChangeArtifactImageTypeTx,
   isUnconfirmedChargeArtifactTx,
@@ -121,9 +126,12 @@ import type {
   UnconfirmedChargeArtifact,
   UnconfirmedCraftSpaceship,
   UnconfirmedCraftModule,
+  UnconfirmedCreateStarBase,
   UnconfirmedUpgradeFoundry,
   UnconfirmedInstallModule,
   UnconfirmedUninstallModule,
+  UnconfirmedInstallStarbaseModule,
+  UnconfirmedUninstallStarbaseModule,
   UnconfirmedClaim,
   UnconfirmedClearJunk,
   UnconfirmedBuyJunk,
@@ -208,6 +216,7 @@ import type {
 } from "../../_types/global/GlobalTypes";
 import NotificationManager from "../../Frontend/Game/NotificationManager";
 import { MIN_CHUNK_SIZE } from "../../Frontend/Utils/constants";
+import { getChunkOfSideLengthContainingPoint } from "../Miner/ChunkUtils";
 import type { Diff } from "../../Frontend/Utils/EmitterUtils";
 import {
   generateDiffEmitter,
@@ -580,6 +589,7 @@ export class GameManager extends EventEmitter {
     for (const [locationId, coords] of revealedCoords) {
       const planet = touchedPlanets.get(locationId);
       if (planet) {
+        // Regular planet - use planet data
         const location: WorldLocation = {
           hash: locationId,
           coords,
@@ -590,6 +600,35 @@ export class GameManager extends EventEmitter {
           ...location,
           revealer: coords.revealer,
         });
+      } else {
+        // Check if this is a starbase (not in touchedPlanets but has revealed coords)
+        // For starbases, we need to read perlin from PlanetConstants
+        const planetEntityKey = encodeEntity(
+          this.components.PlanetConstants.metadata.keySchema,
+          {
+            id: locationIdToHexStr(locationId) as `0x${string}`,
+          },
+        );
+        const planetConstants = getComponentValue(
+          this.components.PlanetConstants,
+          planetEntityKey,
+        );
+        if (
+          planetConstants &&
+          planetConstants.planetType === PlanetType.STARBASE
+        ) {
+          // This is a starbase - create location using hash from RevealedCoords
+          const location: WorldLocation = {
+            hash: locationId,
+            coords,
+            perlin: planetConstants.perlin,
+            biomebase: this.biomebasePerlin(coords, true),
+          };
+          revealedLocations.set(locationId, {
+            ...location,
+            revealer: coords.revealer,
+          });
+        }
       }
     }
 
@@ -1079,6 +1118,14 @@ export class GameManager extends EventEmitter {
         ...this.locationFromCoords(revealedCoords),
         revealer: revealedCoords.revealer,
       };
+      // Ensure starbases are added to planetLocationMap if not already there
+      if (planet.planetType === PlanetType.STARBASE) {
+        const existingLocation = this.entityStore.getLocationOfPlanet(planetId);
+        if (!existingLocation) {
+          // Add starbase location to the map so it's available for future lookups
+          this.entityStore.addPlanetLocation(revealedLocation);
+        }
+      }
     }
 
     // if (claimedCoords) {
@@ -5162,6 +5209,142 @@ export class GameManager extends EventEmitter {
     }
   }
 
+  public async createStarBase(
+    sourcePlanetHash: LocationId,
+    x: number,
+    y: number,
+    level: number,
+    spaceType: number,
+    starbaseType: number = 0, // Default to 0 (DEFAULT) if not specified
+  ): Promise<Transaction<UnconfirmedCreateStarBase>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const sourcePlanet = this.entityStore.getPlanetWithId(sourcePlanetHash);
+      if (!sourcePlanet) {
+        throw new Error("tried to create starbase from an unknown planet");
+      }
+      if (sourcePlanet.planetType !== PlanetType.PLANET) {
+        throw new Error("can only create starbases from PLANET type");
+      }
+      if (!this.checkDelegateCondition(sourcePlanet.owner, this.getAccount())) {
+        throw new Error("can only create starbases from planets you own");
+      }
+      if (sourcePlanet.planetLevel < 4) {
+        throw new Error(
+          "source planet must be level 4 or higher to create starbases",
+        );
+      }
+      if (
+        sourcePlanet.transactions?.hasTransaction(isUnconfirmedCreateStarBaseTx)
+      ) {
+        throw new Error(
+          "another Starbase installation action is already in progress for this planet",
+        );
+      }
+
+      const delegator = sourcePlanet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      // Calculate distance for contract validation (similar to MoveSystem)
+      // If source planet is not revealed, we can't calculate distance, so use 0 (will fail validation)
+      let distance = 0;
+      if (isLocatable(sourcePlanet)) {
+        const sourceCoords = sourcePlanet.location.coords;
+        distance = this.getDistCoords(sourceCoords, { x, y });
+        const maxRange = sourcePlanet.range;
+        const maxAllowedDistance = maxRange * 0.5;
+        if (distance > maxAllowedDistance) {
+          throw new Error(
+            `Starbase must be within 50% of source planet's max range (${maxAllowedDistance.toFixed(2)}). Distance: ${distance.toFixed(2)}`,
+          );
+        }
+      } else {
+        throw new Error(
+          "source planet location must be revealed to calculate distance",
+        );
+      }
+
+      // Prevent creating a starbase in an undiscovered (unhashed) area.
+      // We require the chunk containing (x,y) to be mined locally to avoid reveal reverts.
+      const targetChunk = getChunkOfSideLengthContainingPoint(
+        { x, y },
+        MIN_CHUNK_SIZE,
+      );
+      if (!this.hasMinedChunk(targetChunk)) {
+        throw new Error(
+          "Target area is not discovered. Mine/reveal the map there before creating a starbase.",
+        );
+      }
+
+      // Generate starbase hash using locationBigIntFromCoords (same as Admin-Controls.js)
+      // This matches how createPlanet works for planetType 7 (STARBASE)
+      const coords = { x, y };
+      const starbaseHashBigInt = this.locationBigIntFromCoords(coords);
+      const starbaseHashDecStr = starbaseHashBigInt.toString();
+
+      // Calculate perlin value from coordinates (same as Admin-Controls.js)
+      const perlinValue = Math.round(this.biomebasePerlin(coords, true));
+
+      // For the transaction intent, convert to LocationId format
+      const starbaseHashLocationId = locationIdFromBigInt(
+        starbaseHashBigInt,
+      ) as LocationId;
+
+      const owner = this.getAccount();
+      if (!owner) {
+        throw new Error("no account");
+      }
+      const ownerStr = owner as string;
+
+      const txIntent: UnconfirmedCreateStarBase = {
+        delegator: delegator,
+        methodName: "df__createStarBase",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          locationIdToDecStr(sourcePlanetHash),
+          starbaseHashDecStr,
+          ownerStr,
+          perlinValue,
+          level,
+          spaceType,
+          starbaseType, // 0=Default, 1=Research, 2=Trade
+          x,
+          y,
+          Math.ceil(distance), // Distance parameter (similar to MoveSystem)
+        ]),
+        sourcePlanetHash,
+        starbaseHash: starbaseHashLocationId,
+        owner: ownerStr,
+        perlin: perlinValue,
+        level,
+        spaceType,
+        starbaseType,
+        x,
+        y,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+      await this.hardRefreshPlanet(starbaseHashLocationId);
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__createStarBase",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
   public async craftModule(
     foundryHash: LocationId,
     moduleType: number,
@@ -5257,6 +5440,14 @@ export class GameManager extends EventEmitter {
       if (!this.checkDelegateCondition(planet.owner, this.getAccount())) {
         throw new Error("can only install modules on planets you own");
       }
+      if (
+        planet.transactions?.hasTransaction(isUnconfirmedInstallModuleTx) ||
+        planet.transactions?.hasTransaction(isUnconfirmedUninstallModuleTx)
+      ) {
+        throw new Error(
+          "another Spaceship module installation or uninstallation action is already in progress for this planet",
+        );
+      }
 
       // Verify spaceship artifact exists
       const spaceship = this.entityStore.getArtifactById(spaceshipId);
@@ -5344,7 +5535,14 @@ export class GameManager extends EventEmitter {
       if (!this.checkDelegateCondition(planet.owner, this.getAccount())) {
         throw new Error("can only uninstall modules from planets you own");
       }
-
+      if (
+        planet.transactions?.hasTransaction(isUnconfirmedInstallModuleTx) ||
+        planet.transactions?.hasTransaction(isUnconfirmedUninstallModuleTx)
+      ) {
+        throw new Error(
+          "another Spaceship module installation or uninstallation action is already in progress for this planet",
+        );
+      }
       // Verify spaceship artifact exists
       const spaceship = this.entityStore.getArtifactById(spaceshipId);
       if (!spaceship) {
@@ -5403,6 +5601,138 @@ export class GameManager extends EventEmitter {
     }
   }
 
+  public async installStarbaseModule(
+    starbaseHash: LocationId,
+    moduleId: ArtifactId,
+  ): Promise<Transaction<UnconfirmedInstallStarbaseModule>> {
+    try {
+      if (!this.account) throw new Error("no account");
+      const starbase = this.entityStore.getPlanetWithId(starbaseHash);
+      if (!starbase)
+        throw new Error("tried to install module on unknown starbase");
+      if (starbase.planetType !== PlanetType.STARBASE)
+        throw new Error("target is not a starbase");
+      if (!this.checkDelegateCondition(starbase.owner, this.getAccount())) {
+        throw new Error("can only install modules on starbases you own");
+      }
+      if (
+        starbase.transactions?.hasTransaction(
+          isUnconfirmedInstallStarbaseModuleTx,
+        ) ||
+        starbase.transactions?.hasTransaction(
+          isUnconfirmedUninstallStarbaseModuleTx,
+        )
+      ) {
+        throw new Error(
+          "another Starbase module installation or uninstallation action is already in progress for this planet",
+        );
+      }
+
+      const module = this.entityStore.getArtifactById(moduleId);
+      if (!module) throw new Error("module artifact not found");
+      if (module.artifactType !== ArtifactType.SpaceshipModule) {
+        throw new Error("artifact is not a module");
+      }
+      if (module.onPlanetId !== starbaseHash) {
+        throw new Error("module must be on the target starbase");
+      }
+
+      const delegator = starbase.owner;
+      if (!delegator) throw Error("no delegator account");
+
+      const moduleIdUint32 = Number(
+        BigInt("0x" + moduleId) & BigInt("0xFFFFFFFF"),
+      );
+
+      const txIntent: UnconfirmedInstallStarbaseModule = {
+        delegator,
+        methodName: "df__installStarbaseModule",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          locationIdToDecStr(starbaseHash),
+          moduleIdUint32,
+        ]),
+        starbaseHash,
+        moduleId,
+      };
+
+      const transactionFee = this.getTransactionFee();
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__installStarbaseModule",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async uninstallStarbaseModule(
+    starbaseHash: LocationId,
+    moduleId: ArtifactId,
+  ): Promise<Transaction<UnconfirmedUninstallStarbaseModule>> {
+    try {
+      if (!this.account) throw new Error("no account");
+      const starbase = this.entityStore.getPlanetWithId(starbaseHash);
+      if (!starbase)
+        throw new Error("tried to uninstall module on unknown starbase");
+      if (starbase.planetType !== PlanetType.STARBASE)
+        throw new Error("target is not a starbase");
+      if (!this.checkDelegateCondition(starbase.owner, this.getAccount())) {
+        throw new Error("can only uninstall modules on starbases you own");
+      }
+      if (
+        starbase.transactions?.hasTransaction(
+          isUnconfirmedInstallStarbaseModuleTx,
+        ) ||
+        starbase.transactions?.hasTransaction(
+          isUnconfirmedUninstallStarbaseModuleTx,
+        )
+      ) {
+        throw new Error(
+          "another Starbase module installation or uninstallation action is already in progress for this planet",
+        );
+      }
+
+      const module = this.entityStore.getArtifactById(moduleId);
+      if (!module) throw new Error("module artifact not found");
+
+      const delegator = starbase.owner;
+      if (!delegator) throw Error("no delegator account");
+
+      const moduleIdUint32 = Number(
+        BigInt("0x" + moduleId) & BigInt("0xFFFFFFFF"),
+      );
+
+      const txIntent: UnconfirmedUninstallStarbaseModule = {
+        delegator,
+        methodName: "df__uninstallStarbaseModule",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          locationIdToDecStr(starbaseHash),
+          moduleIdUint32,
+        ]),
+        starbaseHash,
+        moduleId,
+      };
+
+      const transactionFee = this.getTransactionFee();
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__uninstallStarbaseModule",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
   public async upgradeFoundry(
     foundryHash: LocationId,
   ): Promise<Transaction<UnconfirmedUpgradeFoundry>> {
@@ -5423,6 +5753,11 @@ export class GameManager extends EventEmitter {
       }
       if (foundry.planetLevel < 4) {
         throw new Error("foundry must be level 4 or higher to upgrade");
+      }
+      if (foundry.transactions?.hasTransaction(isUnconfirmedUpgradeFoundryTx)) {
+        throw new Error(
+          "another foundry upgrade action is already in progress for this planet",
+        );
       }
 
       // Get current upgrade level from MUD components
@@ -5703,6 +6038,8 @@ export class GameManager extends EventEmitter {
       }
 
       // Generate proof for biome base verification
+      // Note: For starbases, the contract skips biome proof verification, but we still
+      // need to provide a valid proof structure (it won't be verified)
       const locatablePlanet = planet as LocatablePlanet;
       const proof = await this.snarkHelper.getFindArtifactArgs(
         locatablePlanet.location.coords.x,
@@ -7024,7 +7361,15 @@ export class GameManager extends EventEmitter {
     for (const planetLocation of filteredChunk.planetLocations) {
       this.entityStore.addPlanetLocation(planetLocation);
 
-      if (this.entityStore.isPlanetInContract(planetLocation.hash)) {
+      // Check if planet is in contract (touched) OR if it's a revealed location (might be a starbase)
+      // Starbases are excluded from touchedPlanetIds but are in revealed coords
+      const isInContract = this.entityStore.isPlanetInContract(
+        planetLocation.hash,
+      );
+      const revealedLocations = this.entityStore.getRevealedLocations();
+      const isRevealed = revealedLocations.has(planetLocation.hash);
+
+      if (isInContract || isRevealed) {
         this.hardRefreshPlanet(planetLocation.hash); // don't need to await, just start the process of hard refreshing
       }
     }

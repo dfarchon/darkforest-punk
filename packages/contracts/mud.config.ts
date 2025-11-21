@@ -4,7 +4,7 @@ export default defineWorld({
   namespace: "df",
   enums: {
     PlanetStatus: ["DEFAULT", "DESTROYED"],
-    PlanetType: ["UNKNOWN", "PLANET", "ASTEROID_FIELD", "FOUNDRY", "SPACETIME_RIP", "QUASAR", "SUN"],
+    PlanetType: ["UNKNOWN", "PLANET", "ASTEROID_FIELD", "FOUNDRY", "SPACETIME_RIP", "QUASAR", "SUN", "STARBASE"],
     SpaceType: ["UNKNOWN", "NEBULA", "SPACE", "DEEP_SPACE", "DEAD_SPACE"],
     Biome: [
       "UNKNOWN",
@@ -92,22 +92,32 @@ export default defineWorld({
       name: "DfDelegationCtrl",
     },
     FoundryCraftingSystem: {
-      openAccess: false,
+      openAccess: true,
     },
     ModuleCraftingSystem: {
-      openAccess: false,
+      openAccess: true,
     },
     SpaceshipModuleSystem: {
-      openAccess: false,
+      openAccess: true,
     },
     FoundryUpgradeSystem: {
-      openAccess: false,
+      openAccess: true,
+    },
+    StarbaseSystem: {
+      openAccess: true,
+    },
+    StarbaseModuleSystem: {
+      openAccess: true,
+    },
+    PlanetRevealSystem: {
+      openAccess: true,
     },
   },
   excludeSystems: [
     "BaseSystem",
     "ArtifactProxySystem",
     "CannonSystem",
+    "SpaceshipDefenseSystem",
     "WormholeSystem",
     "BloomFilterSystem",
     "PinkBombSystem",
@@ -184,6 +194,7 @@ export default defineWorld({
         spawnPerlinMin: "uint8",
         spawnPerlinMax: "uint8",
         revealCd: "uint32",
+        revealSBCd: "uint32",
       },
       key: [],
     },
@@ -361,6 +372,38 @@ export default defineWorld({
       x: "int32",
       y: "int32",
       revealer: "address",
+    },
+    StarbasePlanet: {
+      schema: {
+        planetHash: "bytes32",
+        starbaseHash: "bytes32",
+      },
+      key: ["planetHash"],
+    },
+    StarbaseType: {
+      schema: {
+        starbaseHash: "bytes32",
+        starbaseType: "uint8", // 0=Default, 1=Research, 2=Trade
+      },
+      key: ["starbaseHash"],
+    },
+    StarBaseModuleInstalled: {
+      schema: {
+        moduleId: "uint32",
+        starbaseHash: "bytes32",
+        moduleSlotType: "uint8", // 1 = ENGINES, 2 = WEAPONS, 3 = HULL, 4 = SHIELD
+        installed: "bool",
+      },
+      key: ["moduleId"],
+    },
+    StarbaseSlot: {
+      schema: {
+        starbaseHash: "bytes32",
+        moduleSlotindex: "uint8", // 1 = ENGINES, 2 = WEAPONS, 3 = HULL_SHIELD
+        moduleSlotType: "uint8", // 1 = ENGINES, 2 = WEAPONS, 3 = HULL, 4 = SHIELD
+        moduleId: "uint32",
+      },
+      key: ["starbaseHash", "moduleSlotindex"],
     },
     ProspectedPlanet: {
       id: "bytes32",

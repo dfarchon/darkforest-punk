@@ -23,6 +23,7 @@ import type {
   SunBodyRendererType,
   SunRayRendererType,
   SunRendererType,
+  StarbaseRendererType,
   RingRendererType,
   RuinsRendererType,
   SpaceRendererType,
@@ -225,4 +226,10 @@ export function isSunRayRenderer(
   renderer: BaseRenderer,
 ): renderer is SunRayRendererType {
   return renderer.rendererType === RendererType.SunRay;
+}
+
+export function isStarbaseRenderer(
+  renderer: BaseRenderer,
+): renderer is StarbaseRendererType {
+  return renderer.rendererType === RendererType.Starbase;
 }

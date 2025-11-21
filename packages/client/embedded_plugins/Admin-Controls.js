@@ -135,27 +135,36 @@ async function createPlanet(coords, level, type) {
   const location = df.locationBigIntFromCoords(coords).toString();
   const perlinValue = df.biomebasePerlin(coords, true);
 
-  //PUNK when dfares/types update, need to update here
-  type++;
+  // Convert dropdown value (0-based, excluding UNKNOWN) to contract enum value
+  // Dropdown: 0=PLANET, 1=ASTEROID_FIELD, 2=FOUNDRY, 3=SPACETIME_RIP, 4=QUASAR, 5=SUN, 6=STARBASE
+  // Contract enum: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6, STARBASE=7
+  // So we need to add 1 to convert dropdown value to enum value
+  const dropdownValue = Number(type);
+  const planetTypeEnum = dropdownValue + 1;
 
   const perlin = Math.round(df.spaceTypePerlin(coords));
   const distFromOrigin = Math.sqrt(coords.x ** 2 + coords.y ** 2);
   const spaceType = df.spaceTypeFromPerlin(perlin, distFromOrigin);
 
+  const account = df.getAccount();
+  const player = df.getPlayer(account);
+  // Use the account address as owner instead of EMPTY_ADDRESS
+  // This ensures the planet is properly initialized with owner and junk owner
+  // (df__createPlanet sets both PlanetOwner and PlanetJunkOwner when owner is provided)
+  const ownerAddress = player?.address || account || EMPTY_ADDRESS;
+
   const args = Promise.resolve([
     location,
-    EMPTY_ADDRESS,
+    ownerAddress,
     perlinValue,
     level,
-    type,
+    planetTypeEnum,
     spaceType,
     1000000,
     0,
     0,
   ]);
 
-  const account = df.getAccount();
-  const player = df.getPlayer(account);
   const tx = await df.submitTransaction({
     delegator: player.address,
     args,
@@ -171,7 +180,71 @@ async function createPlanet(coords, level, type) {
     methodName: "df__revealPlanetByAdmin",
   });
   await revealTx.confirmedPromise;
-  await df.hardRefreshPlanet(locationIdFromDecStr(location));
+
+  // Wait a bit for MUD components to sync after transaction confirmation
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const locationId = locationIdFromDecStr(location);
+
+  // Refresh planet data from contract
+  await df.hardRefreshPlanet(locationId);
+
+  // Get the planet to retrieve its data
+  const planet = df.getPlanetWithId(locationId);
+
+  if (planet) {
+    // Use the coordinates we already have from the createPlanet call
+    // Create WorldLocation from planet and coordinates
+    const planetLocation = {
+      hash: locationId,
+      coords: { x: coords.x, y: coords.y },
+      perlin: planet.perlin,
+      biomebase: df.biomebasePerlin(coords, true),
+    };
+
+    // Add planet location to the game map (this will also insert it into layeredMap)
+    df.getGameObjects().addPlanetLocation(planetLocation);
+
+    // Mark as revealed
+    df.getGameObjects().markLocationRevealed({
+      ...planetLocation,
+      revealer: df.getAccount(),
+    });
+
+    // Force an update to ensure planet is rendered
+    df.getGameObjects().forceTick(locationId);
+
+    // Create a chunk for the planet location to persist it to IndexedDB
+    // This ensures the planet is remembered even after page reload
+    // Calculate chunk footprint (aligned chunk containing the coordinates)
+    const MIN_CHUNK_SIZE = 16; // Minimum chunk size constant
+    const chunkX = Math.floor(coords.x / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE;
+    const chunkY = Math.floor(coords.y / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE;
+    const chunk = {
+      chunkFootprint: {
+        bottomLeft: { x: chunkX, y: chunkY },
+        sideLength: MIN_CHUNK_SIZE,
+      },
+      planetLocations: [planetLocation],
+      perlin: planet.perlin,
+    };
+
+    // Add chunk to persist to IndexedDB
+    if (df.addNewChunk) {
+      df.addNewChunk(chunk);
+    } else {
+      console.warn(
+        "df.addNewChunk not available - planet may not persist to IndexedDB",
+      );
+    }
+
+    // Center view on the new planet
+    ui.centerLocationId(locationId);
+  } else {
+    console.warn(
+      "Planet created but not found after refresh, planet may not appear on map",
+    );
+  }
 }
 
 async function revealPlanet(coords, level, type) {
@@ -188,7 +261,71 @@ async function revealPlanet(coords, level, type) {
     methodName: "df__revealPlanetByAdmin",
   });
   await revealTx.confirmedPromise;
-  await df.hardRefreshPlanet(locationIdFromDecStr(location));
+
+  // Wait a bit for MUD components to sync after transaction confirmation
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const locationId = locationIdFromDecStr(location);
+
+  // Refresh planet data from contract
+  await df.hardRefreshPlanet(locationId);
+
+  // Get the planet to retrieve its data
+  const planet = df.getPlanetWithId(locationId);
+
+  if (planet) {
+    // Use the coordinates we already have from the revealPlanet call
+    // Create WorldLocation from planet and coordinates
+    const planetLocation = {
+      hash: locationId,
+      coords: { x: coords.x, y: coords.y },
+      perlin: planet.perlin,
+      biomebase: df.biomebasePerlin(coords, true),
+    };
+
+    // Add planet location to the game map (this will also insert it into layeredMap)
+    df.getGameObjects().addPlanetLocation(planetLocation);
+
+    // Mark as revealed
+    df.getGameObjects().markLocationRevealed({
+      ...planetLocation,
+      revealer: df.getAccount(),
+    });
+
+    // Force an update to ensure planet is rendered
+    df.getGameObjects().forceTick(locationId);
+
+    // Create a chunk for the planet location to persist it to IndexedDB
+    // This ensures the planet is remembered even after page reload
+    // Calculate chunk footprint (aligned chunk containing the coordinates)
+    const MIN_CHUNK_SIZE = 16; // Minimum chunk size constant
+    const chunkX = Math.floor(coords.x / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE;
+    const chunkY = Math.floor(coords.y / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE;
+    const chunk = {
+      chunkFootprint: {
+        bottomLeft: { x: chunkX, y: chunkY },
+        sideLength: MIN_CHUNK_SIZE,
+      },
+      planetLocations: [planetLocation],
+      perlin: planet.perlin,
+    };
+
+    // Add chunk to persist to IndexedDB
+    if (df.addNewChunk) {
+      df.addNewChunk(chunk);
+    } else {
+      console.warn(
+        "df.addNewChunk not available - planet may not persist to IndexedDB",
+      );
+    }
+
+    // Center view on the new planet
+    ui.centerLocationId(locationId);
+  } else {
+    console.warn(
+      "Planet revealed but not found after refresh, planet may not appear on map",
+    );
+  }
 }
 
 function PlanetLink({ planetId }) {
@@ -236,39 +373,39 @@ function accountOptions(players) {
 function planetTypeOptions() {
   const options = [];
 
-  // Add all planet types from enum (excluding UNKNOWN=0)
-  // Note: The loop uses index i as the dropdown value, which gets incremented in createPlanet
-  // Contract enum: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6
-  // Dropdown values: 0→1, 1→2, 2→3, 3→4, 4→5, 5→6 (after type++)
-  // We skip UNKNOWN (i=0) and start from PLANET (i=1)
-  const planetTypeCount = Object.values(PlanetType).length;
-  for (let i = 1; i < planetTypeCount; i++) {
-    if (PlanetTypeNames[i]) {
-      options.push(html`<option value=${i - 1}>${PlanetTypeNames[i]}</option>`);
-    }
-  }
+  // Explicitly map contract enum values to dropdown options
+  // Contract enum: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6, STARBASE=7
+  // Dropdown values are 0-based excluding UNKNOWN: 0=PLANET, 1=ASTEROID_FIELD, 2=FOUNDRY, 3=SPACETIME_RIP, 4=QUASAR, 5=SUN, 6=STARBASE
+  // In createPlanet, we convert dropdown value to enum by adding 1: dropdown value 0 → enum value 1 (PLANET)
 
-  // Always add SUN manually (for compatibility with @dfares/types that may not have it yet)
-  // SUN is planetType 6 in contract
-  // Dropdown value should be 5 (0-based, excluding UNKNOWN), which becomes 6 after type++ in createPlanet
-  // Check if SUN already exists in options
-  const hasSun =
-    options.some((opt) => {
-      // Check if any option has value 5 (which would be SUN)
-      const optValue = opt?.props?.value ?? opt?.value;
-      return optValue === 5 || optValue === "5";
-    }) ||
-    (PlanetTypeNames[6] === "Sun" && options.length >= 6);
+  // Map contract enum index to dropdown value and display name
+  const contractPlanetTypes = [
+    { enumValue: 1, name: "Planet" }, // PLANET
+    { enumValue: 2, name: "Asteroid Field" }, // ASTEROID_FIELD (SILVER_MINE in client)
+    { enumValue: 3, name: "Foundry" }, // FOUNDRY (RUINS in client)
+    { enumValue: 4, name: "Spacetime Rip" }, // SPACETIME_RIP (TRADING_POST in client)
+    { enumValue: 5, name: "Quasar" }, // QUASAR
+    { enumValue: 6, name: "Sun" }, // SUN
+    { enumValue: 7, name: "Starbase" }, // STARBASE
+  ];
 
-  if (!hasSun) {
-    // Add SUN: dropdown value 5 (0-based, excluding UNKNOWN), becomes 6 in contract after type++
-    options.push(html`<option value=${5}>Sun</option>`);
+  for (const planetType of contractPlanetTypes) {
+    // Dropdown value = enumValue - 1 (0-based, excluding UNKNOWN)
+    const dropdownValue = planetType.enumValue - 1;
+    // Use explicit name to avoid any mapping issues with PlanetTypeNames
+    const displayName = planetType.name;
+    // Ensure value is explicitly set as a number string for proper binding
+    options.push(
+      html`<option value="${dropdownValue}">${displayName}</option>`,
+    );
   }
 
   return options;
 }
 
 function Select({ style, value, onChange, items }) {
+  // Ensure value is a string for proper HTML select binding
+  const stringValue = String(value);
   return html`
     <select
       style=${{
@@ -282,7 +419,7 @@ function Select({ style, value, onChange, items }) {
         padding: "2px 6px",
         cursor: "pointer",
       }}
-      value=${value}
+      value=${stringValue}
       onChange=${onChange}
     >
       ${items}
@@ -304,11 +441,19 @@ const rowStyle = {
 function PlanetCreator() {
   const uiEmitter = ui.getUIEmitter();
   const [level, setLevel] = useState(0);
-  const [planetType, setPlanetType] = useState(PlanetType.PLANET);
+  // Initialize to 0 (dropdown value for PLANET, which is index 1 in enum, value 0 in dropdown)
+  // Dropdown values are 0-based excluding UNKNOWN: 0=PLANET, 1=ASTEROID_FIELD, 2=FOUNDRY, etc.
+  const [planetType, setPlanetType] = useState(0);
   const [choosingLocation, setChoosingLocation] = useState(false);
   const [planetCoords, setPlanetCoords] = useState(null);
   const placePlanet = useCallback(
     (coords) => {
+      console.log(
+        "placePlanet called with planetType:",
+        planetType,
+        "type:",
+        typeof planetType,
+      );
       createPlanet(coords, parseInt(level), planetType);
       setChoosingLocation(false);
     },
@@ -351,8 +496,17 @@ function PlanetCreator() {
           <label for="planet-type-selector">Planet Type</label>
           <${Select}
             id="planet-type-selector"
-            value=${planetType}
-            onChange=${(e) => setPlanetType(e.target.value)}
+            value=${String(planetType)}
+            onChange=${(e) => {
+              const value = Number(e.target.value);
+              console.log(
+                "Planet type changed - dropdown value:",
+                value,
+                "will become enum:",
+                value + 1,
+              );
+              setPlanetType(value);
+            }}
             items=${planetTypeOptions()}
           />
         </div>
@@ -393,7 +547,7 @@ function PlanetCreator() {
                 y: 0,
               },
               parseInt("9"),
-              PlanetType.PLANET,
+              0, // Dropdown value 0 = PLANET
             );
           }}
           >Add Center Planet</df-button
@@ -407,7 +561,7 @@ function PlanetCreator() {
                 y: 0,
               },
               parseInt("9"),
-              PlanetType.PLANET,
+              0, // Dropdown value 0 = PLANET
             );
           }}
           >Reveal Center Planet</df-button

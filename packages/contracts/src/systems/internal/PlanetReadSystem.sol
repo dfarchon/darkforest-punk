@@ -58,6 +58,12 @@ contract PlanetReadSystem is BaseSystem {
     return _syncTo(planet, untilTick);
   }
 
+  /// @notice Syncs planet to the given tick, processing moves and applying natural growth.
+  /// @dev Works for all planet types including STARBASE. This is the lazy update mechanism:
+  ///      planets are only synced when read, not continuously.
+  /// @param planet The planet to sync
+  /// @param untilTick The tick number to sync to
+  /// @return The synced planet
   function _syncTo(Planet memory planet, uint256 untilTick) internal view returns (Planet memory) {
     MoveData memory move = planet.popArrivedMove(untilTick);
     while (uint256(move.from) != 0) {

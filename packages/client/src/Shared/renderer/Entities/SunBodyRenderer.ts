@@ -5,14 +5,14 @@ import { mat4 } from "gl-matrix";
 
 import { engineConsts } from "../EngineConsts";
 import { EngineUtils } from "../EngineUtils";
-import { STARBODY_PROGRAM_DEFINITION } from "../Programs/StarBodyProgram";
+import { SUNBODY_PROGRAM_DEFINITION } from "../Programs/SunBodyProgram";
 import type { GameGLManager } from "../WebGL/GameGLManager";
 import { GenericRenderer } from "../WebGL/GenericRenderer";
 
 const { maxRadius } = engineConsts.planet;
 
 export class SunBodyRenderer
-  extends GenericRenderer<typeof STARBODY_PROGRAM_DEFINITION, GameGLManager>
+  extends GenericRenderer<typeof SUNBODY_PROGRAM_DEFINITION, GameGLManager>
   implements SunBodyRendererType
 {
   timeMatrix: mat4;
@@ -23,7 +23,7 @@ export class SunBodyRenderer
   rendererType = RendererType.SunBody;
 
   constructor(manager: GameGLManager) {
-    super(manager, STARBODY_PROGRAM_DEFINITION);
+    super(manager, SUNBODY_PROGRAM_DEFINITION);
 
     // non-gl stuff
     this.timeMatrix = mat4.create();

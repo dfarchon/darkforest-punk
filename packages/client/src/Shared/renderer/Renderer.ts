@@ -85,6 +85,7 @@ import { QuasarRenderer } from "./Entities/QuasarRenderer";
 import { RectRenderer } from "./Entities/RectRenderer";
 import { SunBodyRenderer } from "./Entities/SunBodyRenderer";
 import { SunRenderer } from "./Entities/SunRenderer";
+import { StarbaseRenderer } from "./Entities/StarbaseRenderer";
 import { RingRenderer } from "./Entities/RingRenderer";
 import { RuinsRenderer } from "./Entities/RuinsRenderer";
 import { SpaceRenderer } from "./Entities/SpaceRenderer";
@@ -117,6 +118,7 @@ import {
   isRectRenderer,
   isSunBodyRenderer,
   isSunRenderer,
+  isStarbaseRenderer,
   isRingRenderer,
   isRuinsRenderer,
   isSpaceRenderer,
@@ -199,6 +201,7 @@ export interface RendererGameContext extends DiagnosticUpdater {
   getAIZones(): Iterable<AIZone>;
   getPinkZoneByArtifactId(artifactId: ArtifactId): PinkZone | undefined;
   getBlueZones(): Iterable<BlueZone>;
+  getChoosingStarbaseLocationPlanet(): LocatablePlanet | undefined;
   inSameGuildAtTick(
     player1: EthAddress,
     player2: EthAddress,
@@ -260,6 +263,7 @@ export class Renderer {
   quasarRayRenderer: QuasarRayRendererType;
   sunRenderer: SunRendererType;
   sunBodyRenderer: SunBodyRendererType;
+  starbaseRenderer: StarbaseRendererType;
   spacetimeRipRenderer: SpacetimeRipRendererType;
   ruinsRenderer: RuinsRendererType;
 
@@ -311,6 +315,7 @@ export class Renderer {
       new SpacetimeRipRenderer(this.glManager),
       new QuasarRenderer(this.glManager),
       new SunRenderer(this.glManager),
+      new StarbaseRenderer(this.glManager),
       new RuinsRenderer(this.glManager),
 
       new AsteroidRenderer(this.glManager),
@@ -556,6 +561,14 @@ export class Renderer {
           break;
         }
         console.log("Renderer is not a Sun renderer");
+        return false;
+
+      case RendererType.Starbase:
+        if (isStarbaseRenderer(renderer)) {
+          this.starbaseRenderer = renderer;
+          break;
+        }
+        console.log("Renderer is not a Starbase renderer");
         return false;
 
       case RendererType.Ruins:

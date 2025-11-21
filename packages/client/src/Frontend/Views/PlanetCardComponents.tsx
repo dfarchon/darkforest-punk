@@ -1,15 +1,17 @@
 import type { Artifact, Planet, TooltipName } from "@df/types";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 
+import { ArtifactImage } from "../Components/ArtifactImage";
 import {
-  ArtifactBiomeText,
   ArtifactRarityLabelAnim,
   ArtifactTypeText,
 } from "../Components/Labels/ArtifactLabels";
 import { Sub, White } from "../Components/Text";
 import { TooltipTrigger } from "../Panes/Tooltip";
 import dfstyles from "../Styles/dfstyles";
+import { ArtifactDetailsBody } from "../Panes/ArtifactDetailsPane";
+import { useUIManager } from "../Utils/AppHooks";
 
 const BonusStyle = styled.span`
   color: ${dfstyles.colors.dfgreen};
@@ -57,7 +59,40 @@ const StyledPlanetActiveArtifact = styled.div<{ planet: Planet | undefined }>`
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
+  gap: 0.5em;
   color: ${dfstyles.colors.text};
+`;
+
+const ArtifactHoverContainer = styled.div`
+  position: relative;
+  display: inline-block;
+  cursor: help;
+`;
+
+const ArtifactHoverPopup = styled.div<{
+  top: number;
+  left: number;
+  visible: boolean;
+}>`
+  position: fixed;
+  top: ${(props) => props.top}px;
+  left: ${(props) => props.left}px;
+  background: ${dfstyles.colors.background};
+  border: 1px solid ${dfstyles.colors.border};
+  border-radius: 4px;
+  padding: 1em;
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 600px;
+  overflow-y: auto;
+  z-index: 10000;
+  opacity: ${(props) => (props.visible ? 1 : 0)};
+  visibility: ${(props) => (props.visible ? "visible" : "hidden")};
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s ease;
+  pointer-events: ${(props) => (props.visible ? "auto" : "none")};
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 `;
 
 export function PlanetActiveArtifact({
@@ -67,8 +102,87 @@ export function PlanetActiveArtifact({
   artifact: Artifact;
   planet: Planet | undefined;
 }) {
+  const uiManager = useUIManager();
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+  const [shouldRenderDetails, setShouldRenderDetails] = useState(false);
+
+  // Delay rendering ArtifactDetailsBody to avoid setState during render
+  useEffect(() => {
+    if (isHovered) {
+      // Small delay to ensure hover state is committed before rendering
+      const timer = setTimeout(() => {
+        setShouldRenderDetails(true);
+      }, 0);
+      return () => clearTimeout(timer);
+    } else {
+      setShouldRenderDetails(false);
+    }
+  }, [isHovered]);
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    setMousePosition({ x: event.clientX, y: event.clientY });
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
+
+  // Calculate popup position with edge detection
+  const popupWidth = 400;
+  const popupHeight = 600;
+  const offset = 15;
+  let popupLeft = mousePosition.x + offset;
+  let popupTop = mousePosition.y + offset;
+
+  // Adjust if popup would go off right edge
+  if (popupLeft + popupWidth > window.innerWidth) {
+    popupLeft = mousePosition.x - popupWidth - offset;
+  }
+
+  // Adjust if popup would go off bottom edge
+  if (popupTop + popupHeight > window.innerHeight) {
+    popupTop = mousePosition.y - popupHeight - offset;
+  }
+
+  // Ensure popup doesn't go off left edge
+  if (popupLeft < 0) {
+    popupLeft = offset;
+  }
+
+  // Ensure popup doesn't go off top edge
+  if (popupTop < 0) {
+    popupTop = offset;
+  }
+
   return (
     <StyledPlanetActiveArtifact planet={planet}>
+      <ArtifactHoverContainer
+        onMouseMove={handleMouseMove}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <ArtifactImage artifact={artifact} size={24} />
+        <ArtifactHoverPopup
+          top={popupTop}
+          left={popupLeft}
+          visible={isHovered}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {shouldRenderDetails && uiManager && (
+            <ArtifactDetailsBody
+              artifactId={artifact.id}
+              contractConstants={uiManager.contractConstants}
+              noActions={true}
+            />
+          )}
+        </ArtifactHoverPopup>
+      </ArtifactHoverContainer>
       <Sub>
         Active Artifact:{" "}
         <White>

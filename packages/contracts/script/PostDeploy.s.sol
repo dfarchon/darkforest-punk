@@ -30,6 +30,7 @@ import { installCannon } from "../src/modules/atfs/PhotoidCannon/CannonInstallLi
 import { installWormhole } from "../src/modules/atfs/Wormhole/WormholeInstallLibrary.sol";
 import { installBloomFilter } from "../src/modules/atfs/BloomFilter/BloomFilterInstallLibrary.sol";
 import { installPinkBomb } from "../src/modules/atfs/PinkBomb/PinkBombInstallLibrary.sol";
+import { installSpaceshipDefense } from "../src/modules/atfs/SpaceshipDefense/SpaceshipDefenseInstallLibrary.sol";
 import { IArtifactNFT } from "../src/tokens/IArtifactNFT.sol";
 import { ArtifactNFT } from "../src/tokens/ArtifactNFT.sol";
 import { EntryFee } from "codegen/tables/EntryFee.sol";
@@ -206,6 +207,8 @@ contract PostDeploy is Script {
     console.log("Installed bloom filter with index", index);
     index = installPinkBomb(worldAddress);
     console.log("Installed pinkbomb with index", index);
+    index = installSpaceshipDefense(worldAddress);
+    console.log("Installed spaceship defense with index", index);
   }
 
   function _setArtifactNFTConfig(address artifactNftAddress) internal {

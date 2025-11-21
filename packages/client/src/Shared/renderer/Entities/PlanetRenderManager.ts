@@ -527,6 +527,28 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       this.queueRangeRings(planet);
     }
 
+    // Draw red circle for starbase location selection (50% of range)
+    const choosingStarbasePlanet =
+      this.renderer.context.getChoosingStarbaseLocationPlanet();
+    if (
+      choosingStarbasePlanet &&
+      choosingStarbasePlanet.locationId === planet.locationId
+    ) {
+      const { circleRenderer: cR } = this.renderer;
+      const maxRange = planet.range;
+      const starbaseRange = maxRange * 0.5; // 50% of range
+      const redColor: RGBAVec = [255, 0, 0, 200]; // Red with some transparency
+      cR.queueCircleWorld(
+        planet.location.coords,
+        starbaseRange,
+        redColor,
+        2, // stroke width
+        1, // full circle
+        true, // dashed
+      );
+      cR.flush();
+    }
+
     //render Ice Link
     if (planet.frozen) {
       this.queueBlackDomain(
@@ -1271,6 +1293,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     const {
       quasarRenderer: qR,
       sunRenderer: sR,
+      starbaseRenderer: stR,
       planetRenderer: pR,
       spacetimeRipRenderer: spR,
       ruinsRenderer: rR,
@@ -1286,6 +1309,33 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
         sR.queueSun(planet, centerW, radiusW);
       } else {
         console.error("[PlanetRenderManager] sunRenderer is not available!");
+      }
+      return;
+    }
+
+    // Check STARBASE (planetType 7)
+    if (planetTypeNum === 7 || planetType === PlanetType.STARBASE) {
+      if (stR) {
+        // console.log("[PlanetRenderManager] Rendering starbase:", {
+        //   planetId: planet.locationId,
+        //   planetType: planetType,
+        //   planetTypeNum: planetTypeNum,
+        //   centerW,
+        //   radiusW,
+        // });
+        stR.queueStarbase(planet, centerW, radiusW);
+      } else {
+        console.error(
+          "[PlanetRenderManager] starbaseRenderer is not available!",
+        );
+        console.error("[PlanetRenderManager] Available renderers:", {
+          quasarRenderer: !!qR,
+          sunRenderer: !!sR,
+          starbaseRenderer: !!stR,
+          planetRenderer: !!pR,
+        });
+        // Fallback to regular planet renderer if starbase renderer is not available
+        pR.queuePlanetBody(planet, centerW, radiusW);
       }
       return;
     }
@@ -1688,6 +1738,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       mineRenderer,
       quasarRenderer,
       sunRenderer,
+      starbaseRenderer,
       spacetimeRipRenderer,
       ruinsRenderer,
       ringRenderer,
@@ -1710,6 +1761,7 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
     // Note: setUniforms is called automatically from within flush() by the child renderers
     quasarRenderer.flush();
     sunRenderer.flush();
+    starbaseRenderer.flush();
     blackDomainRenderer.flush();
   }
 }

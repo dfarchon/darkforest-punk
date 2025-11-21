@@ -29,6 +29,7 @@ import {
   isUnconfirmedBuySpaceshipTx,
   isUnconfirmedCapturePlanetTx,
   isUnconfirmedCraftSpaceshipTx,
+  isUnconfirmedCreateStarBaseTx,
   isUnconfirmedChangeArtifactImageTypeTx,
   isUnconfirmedChargeArtifactTx,
   isUnconfirmedClaimTx,
@@ -40,6 +41,7 @@ import {
   isUnconfirmedFindArtifactTx,
   isUnconfirmedInitTx,
   isUnconfirmedInstallModuleTx,
+  isUnconfirmedInstallStarbaseModuleTx,
   isUnconfirmedInvadePlanetTx,
   isUnconfirmedInviteToGuildTx,
   isUnconfirmedKardashevTx,
@@ -48,6 +50,7 @@ import {
   isUnconfirmedMoveTx,
   isUnconfirmedPinkTx,
   isUnconfirmedUninstallModuleTx,
+  isUnconfirmedUninstallStarbaseModuleTx,
   isUnconfirmedProspectPlanetTx,
   isUnconfirmedRefreshPlanetTx,
   isUnconfirmedRevealTx,
@@ -59,14 +62,20 @@ import {
   isUnconfirmedUpgradeTx,
   isUnconfirmedWithdrawArtifactTx,
   isUnconfirmedWithdrawSilverTx,
+  artifactIdFromHexStr,
+  hexToEthAddress,
   locationIdFromBigInt,
+  locationIdFromHexStr,
+  locationIdToHexStr,
   locationIdToDecStr,
 } from "@df/serde";
 import type { EthAddress, GuildId, VoyageId } from "@df/types";
 import type {
   Artifact,
   ArtifactId,
+  Chunk,
   LocationId,
+  Rectangle,
   Transaction,
   WorldLocation,
 } from "@df/types";
@@ -81,18 +90,25 @@ import {
 } from "@df/types";
 import type { ClientComponents } from "@mud/createClientComponents";
 import delay from "delay";
-import { getComponentValue } from "@latticexyz/recs";
+import { getComponentValue, Has, runQuery } from "@latticexyz/recs";
+import type { Hex } from "viem";
 import {
   decodeEntity,
   encodeEntity,
   singletonEntity,
 } from "@latticexyz/store-sync/recs";
+import {
+  setStarbaseModuleCounts,
+  setStarbaseModules,
+} from "../../Shared/renderer/StarbaseModuleCounts";
 
 import { ContractsAPIEvent } from "../../_types/darkforest/api/ContractsAPITypes";
 import type { HashConfig } from "../../_types/global/GlobalTypes";
 import NotificationManager from "../../Frontend/Game/NotificationManager";
 import { pollSetting } from "../../Frontend/Utils/SettingsHooks";
 import type { TerminalHandle } from "../../Frontend/Views/Terminal";
+import { MIN_CHUNK_SIZE } from "../../Frontend/Utils/constants";
+import { getChunkOfSideLengthContainingPoint } from "../Miner/ChunkUtils";
 import PersistentChunkStore from "../Storage/PersistentChunkStore";
 import SnarkArgsHelper from "../Utils/SnarkArgsHelper";
 import { makeContractsAPI } from "./ContractsAPI";
@@ -282,6 +298,190 @@ export class GameManagerFactory {
 
     contractsAPI.setupEventListeners();
 
+    // Periodic sync for RevealedPlanet table to catch newly revealed planets
+    // This ensures other players see newly revealed planets (especially starbases) without refresh
+    const syncRevealedPlanets = async () => {
+      try {
+        const {
+          RevealedPlanet: RevealedPlanetComponent,
+          PlanetConstants: PlanetConstantsComponent,
+        } = components;
+
+        // Get all revealed planets from the table
+        const revealedPlanetEntities = [
+          ...runQuery([Has(RevealedPlanetComponent)]),
+        ];
+
+        for (const entity of revealedPlanetEntities) {
+          // Entity from runQuery is already the correct entity key for RevealedPlanet
+          // Use it directly to get the component value
+          const revealedPlanet = getComponentValue(
+            RevealedPlanetComponent,
+            entity,
+          );
+
+          if (!revealedPlanet) {
+            continue;
+          }
+
+          // Get the planet hex from the entity
+          // For RevealedPlanet table with id: "bytes32", the entity is the encoded bytes32
+          // We can use entity.toString() directly (same pattern as ContractsAPI.getRevealedPlanetsCoords)
+          const planetHex = entity.toString();
+
+          // Check if this is a starbase by reading PlanetConstants
+          // Try to get PlanetConstants - if it fails or doesn't exist, we'll try to determine type from hash
+          let planetConstants = null;
+          let isStarbase = false;
+
+          try {
+            const planetConstantsEntityKey = encodeEntity(
+              PlanetConstantsComponent.metadata.keySchema,
+              {
+                id: planetHex as `0x${string}`,
+              },
+            );
+            planetConstants = getComponentValue(
+              PlanetConstantsComponent,
+              planetConstantsEntityKey,
+            );
+            isStarbase = planetConstants?.planetType === 7; // PlanetType.STARBASE = 7
+          } catch (_error) {
+            // If we can't get PlanetConstants, we'll try to determine if it's a starbase by attempting locationIdFromHexStr
+            // If that fails, it's likely a starbase
+          }
+
+          // Handle starbases differently (they can have hashes that exceed LOCATION_ID_UB)
+          let planetId: LocationId;
+
+          if (isStarbase) {
+            // For starbases, use the hex string directly as LocationId
+            const starbaseHash = planetHex.startsWith("0x")
+              ? planetHex.slice(2).toLowerCase().padStart(64, "0")
+              : planetHex.toLowerCase().padStart(64, "0");
+            planetId = starbaseHash as LocationId;
+          } else {
+            // For regular planets, convert using locationIdFromHexStr
+            try {
+              planetId = locationIdFromHexStr(planetHex);
+            } catch (_error) {
+              // If conversion fails, it might be a starbase with a hash that exceeds LOCATION_ID_UB
+              // Try treating it as a starbase
+              const starbaseHash = planetHex.startsWith("0x")
+                ? planetHex.slice(2).toLowerCase().padStart(64, "0")
+                : planetHex.toLowerCase().padStart(64, "0");
+              planetId = starbaseHash as LocationId;
+              isStarbase = true; // Mark as starbase for later use
+            }
+          }
+
+          // If we still don't have planetConstants, try to get it now with the planetId
+          if (!planetConstants && planetId) {
+            try {
+              const planetConstantsEntityKey = encodeEntity(
+                PlanetConstantsComponent.metadata.keySchema,
+                {
+                  id: planetHex as `0x${string}`,
+                },
+              );
+              planetConstants = getComponentValue(
+                PlanetConstantsComponent,
+                planetConstantsEntityKey,
+              );
+              // Update isStarbase if we now have the constants
+              if (planetConstants) {
+                isStarbase = planetConstants.planetType === 7;
+              }
+            } catch (_error) {
+              // If we still can't get it, continue with what we have
+            }
+          }
+
+          // If we still don't have planetConstants, proceed with a provisional location (assume starbase)
+          // Use a safe default perlin for rendering; a later hardRefresh will load correct data
+          const provisionalPerlin = 21;
+
+          // Check if planet location is already in the map
+          const existingPlanet = gameManager
+            .getGameObjects()
+            .getPlanetWithId(planetId);
+          const hasLocation = existingPlanet && isLocatable(existingPlanet);
+
+          if (!hasLocation) {
+            // Planet location not in map yet - we already have revealedPlanet data above
+            const coords = {
+              x: Number(revealedPlanet.x),
+              y: Number(revealedPlanet.y),
+            };
+
+            const location: WorldLocation = {
+              hash: planetId,
+              coords,
+              perlin: planetConstants
+                ? planetConstants.perlin
+                : provisionalPerlin,
+              biomebase: gameManager.biomebasePerlin(coords, true),
+            };
+
+            // Add planet location to map and mark as revealed
+            gameManager.getGameObjects().addPlanetLocation(location);
+            gameManager.getGameObjects().markLocationRevealed({
+              ...location,
+              revealer: hexToEthAddress(
+                revealedPlanet.revealer.toString() as Hex,
+              ),
+            });
+
+            // Create a chunk for the planet location to persist it
+            const chunkFootprint = getChunkOfSideLengthContainingPoint(
+              coords,
+              MIN_CHUNK_SIZE,
+            );
+            const chunk: Chunk = {
+              chunkFootprint,
+              planetLocations: [location],
+              perlin: location.perlin,
+            };
+            gameManager.addNewChunk(chunk);
+
+            // Refresh the planet data
+            gameManager.hardRefreshPlanet(planetId);
+
+            // After refresh, reindex into layered map with correct level and trigger viewport update
+            const planet = gameManager
+              .getGameObjects()
+              .getPlanetWithId(planetId);
+            if (planet && isLocatable(planet)) {
+              gameManager.getGameObjects().reindexPlanetInLayeredMap(planetId);
+
+              // Ensure all visibility/contract flags are set
+              gameManager.getGameObjects().updatePlanet(planetId, (p) => {
+                p.coordsRevealed = true;
+                p.isInContract = true;
+                p.syncedWithContract = true;
+              });
+
+              // Force update and emit to refresh viewport
+              gameManager.getGameObjects().forceTick(planetId);
+              gameManager.emit(GameManagerEvent.PlanetUpdate);
+              await delay(200);
+              gameManager.emit(GameManagerEvent.PlanetUpdate);
+            }
+          }
+        }
+      } catch (error) {
+        // Silently handle errors to avoid spamming console
+        console.warn("Error syncing revealed planets:", error);
+      }
+    };
+    // TODO - 9stx6 - remove this interval after testing?
+
+    // Sync every 3 seconds to catch newly revealed planets
+    setInterval(syncRevealedPlanets, 3000);
+
+    // Initial sync after a short delay to let MUD components initialize
+    setTimeout(syncRevealedPlanets, 2000);
+
     // get twitter handles
     // gameManager.refreshTwitters();
 
@@ -331,6 +531,56 @@ export class GameManagerFactory {
           gameManager.emit(GameManagerEvent.PlanetUpdate);
         }
         await gameManager.refreshServerPlanetStates([planetId]);
+
+        // Update starbase module counts for renderer
+        try {
+          const { StarBaseModuleInstalled } = components;
+          const valuesAny = (
+            StarBaseModuleInstalled as unknown as { values?: unknown }
+          ).values as Record<string, unknown> | undefined;
+          const sbMap =
+            (valuesAny?.["starbaseHash"] as Map<unknown, unknown>) || undefined;
+          const slotTypeMap =
+            (valuesAny?.["moduleSlotType"] as Map<unknown, unknown>) ||
+            undefined;
+          const installedFlagMap =
+            (valuesAny?.["installed"] as Map<unknown, unknown>) || undefined;
+          let weapons = 0;
+          let hull = 0;
+          let shield = 0;
+          if (sbMap && slotTypeMap && installedFlagMap) {
+            const planetHex = locationIdToHexStr(planetId).toLowerCase();
+            for (const [key, sbh] of sbMap.entries()) {
+              const isInstalled =
+                (
+                  installedFlagMap as unknown as {
+                    get: (k: unknown) => unknown;
+                  }
+                ).get(key) === true;
+              if (!isInstalled) continue;
+              const storedHex =
+                typeof sbh === "string"
+                  ? (sbh as string).toLowerCase()
+                  : String(sbh).toLowerCase();
+              if (storedHex !== planetHex) continue;
+              const slotType = Number(
+                (
+                  slotTypeMap as unknown as { get: (k: unknown) => unknown }
+                ).get(key) ?? 0,
+              );
+              if (slotType === 1) {
+                weapons += 1;
+              } else if (slotType === 3) {
+                hull += 1;
+              } else if (slotType === 4) {
+                shield += 1;
+              }
+            }
+          }
+          setStarbaseModuleCounts(planetId, weapons, hull, shield);
+        } catch {
+          /* noop */
+        }
       })
       .on(
         ContractsAPIEvent.ArrivalQueued,
@@ -352,9 +602,149 @@ export class GameManagerFactory {
       .on(
         ContractsAPIEvent.LocationRevealed,
         async (planetId: LocationId, _revealer: EthAddress) => {
-          // TODO: hook notifs or emit event to UI if you want
+          // For newly revealed planets (especially starbases), we need to:
+          // 1. Get the revealed coordinates from the RevealedPlanet component
+          // 2. Add the planet location to the map
+          // 3. Mark it as revealed
+          // 4. Then refresh the planet data
+
+          // Check if planet location is already in the map
+          const existingPlanet = gameManager
+            .getGameObjects()
+            .getPlanetWithId(planetId);
+          const hasLocation = existingPlanet && isLocatable(existingPlanet);
+
+          // Track whether this reveal is for a starbase, to adjust reinsertion behavior (no longer needed here)
+
+          if (!hasLocation) {
+            // Planet location not in map yet - get coordinates from RevealedPlanet component
+            // Use the same pattern as ContractsAPI.getRevealedCoordsByIdIfExists
+            const {
+              RevealedPlanet: RevealedPlanetComponent,
+              PlanetConstants: PlanetConstantsComponent,
+            } = components;
+
+            // Convert LocationId to hex string for entity key
+            // For starbases, planetId is already a hex string, for regular planets we need to convert
+            let planetHex: string;
+            if (typeof planetId === "string" && planetId.startsWith("0x")) {
+              planetHex = planetId;
+            } else if (typeof planetId === "string" && planetId.length === 64) {
+              // Already a hex string without 0x prefix (starbase format)
+              planetHex = `0x${planetId}`;
+            } else {
+              // Try to convert using locationIdToHexStr
+              try {
+                planetHex = locationIdToHexStr(planetId);
+              } catch (_error) {
+                // If conversion fails, skip this planet
+                return;
+              }
+            }
+            const revealedPlanetEntityKey = encodeEntity(
+              RevealedPlanetComponent.metadata.keySchema,
+              {
+                id: planetHex as Hex,
+              },
+            );
+            const revealedPlanet = getComponentValue(
+              RevealedPlanetComponent,
+              revealedPlanetEntityKey,
+            );
+
+            if (revealedPlanet) {
+              const coords = {
+                x: Number(revealedPlanet.x),
+                y: Number(revealedPlanet.y),
+              };
+
+              // Get planet constants to get perlin
+              const planetConstantsEntityKey = encodeEntity(
+                PlanetConstantsComponent.metadata.keySchema,
+                {
+                  id: planetHex as Hex,
+                },
+              );
+              const planetConstants = getComponentValue(
+                PlanetConstantsComponent,
+                planetConstantsEntityKey,
+              );
+
+              if (planetConstants) {
+                const location: WorldLocation = {
+                  hash: planetId,
+                  coords,
+                  perlin: planetConstants.perlin,
+                  biomebase: gameManager.biomebasePerlin(coords, true),
+                };
+
+                // Add planet location to map and mark as revealed
+                gameManager.getGameObjects().addPlanetLocation(location);
+                gameManager.getGameObjects().markLocationRevealed({
+                  ...location,
+                  revealer: _revealer,
+                });
+
+                // Create a chunk for the planet location to persist it
+                const chunkFootprint = getChunkOfSideLengthContainingPoint(
+                  coords,
+                  MIN_CHUNK_SIZE,
+                );
+                const chunk: Chunk = {
+                  chunkFootprint,
+                  planetLocations: [location],
+                  perlin: planetConstants.perlin,
+                };
+                gameManager.addNewChunk(chunk);
+              }
+            }
+          }
+
+          // Now refresh the planet data
           await gameManager.hardRefreshPlanet(planetId);
-          gameManager.emit(GameManagerEvent.PlanetUpdate);
+
+          // CRITICAL: Re-add planet location AFTER refresh to ensure it has correct level/data
+          // The layered map uses planetLevel to determine which quadtree to query
+          // Without the correct level, the planet won't be found by getPlanetsInWorldRectangle
+          const planet = gameManager.getGameObjects().getPlanetWithId(planetId);
+
+          if (planet && isLocatable(planet)) {
+            // Non-destructive reindex into correct quadtree based on final level
+            gameManager.getGameObjects().reindexPlanetInLayeredMap(planetId);
+
+            // Ensure all visibility flags are set (including restoring coordsRevealed)
+            gameManager.getGameObjects().updatePlanet(planetId, (p) => {
+              p.coordsRevealed = true;
+              p.isInContract = true;
+              p.syncedWithContract = true;
+            });
+
+            // Force tick to update lazy planet state
+            gameManager.getGameObjects().forceTick(planetId);
+
+            // Ensure chunk is persisted to IndexedDB (re-add chunk after refresh to ensure it's saved)
+            const chunkFootprint = getChunkOfSideLengthContainingPoint(
+              planet.location.coords,
+              MIN_CHUNK_SIZE,
+            );
+            const chunk: Chunk = {
+              chunkFootprint,
+              planetLocations: [planet.location],
+              perlin: planet.location.perlin,
+            };
+            gameManager.addNewChunk(chunk);
+
+            // Emit planet update event to trigger UI refresh and viewport recalculation
+            gameManager.emit(GameManagerEvent.PlanetUpdate);
+
+            // Additional delay and emit to ensure viewport has time to recalculate
+            // This is especially important for starbases which might need extra time
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            gameManager.emit(GameManagerEvent.PlanetUpdate);
+          } else {
+            // Still emit update event even if planet not found, in case it appears later
+            gameManager.emit(GameManagerEvent.PlanetUpdate);
+          }
         },
       )
       .on(
@@ -464,6 +854,85 @@ export class GameManagerFactory {
           gameManager.getGameObjects().forceTick(tx.intent.foundryHash);
           // Emit planet update event to trigger UI refresh
           gameManager.emit(GameManagerEvent.PlanetUpdate);
+        } else if (isUnconfirmedCreateStarBaseTx(tx)) {
+          // Wait a bit for MUD components to sync after transaction confirmation
+          // Starbase data is stored in MUD tables (PlanetConstants, RevealedPlanet, etc.)
+          await delay(500);
+
+          const starbaseHash = tx.intent.starbaseHash;
+
+          // First, add starbase location to the game (must be done before hardRefreshPlanet)
+          // Use components from the factory scope (passed to create function)
+          const { PlanetConstants } = components;
+          const planetEntityKey = encodeEntity(
+            PlanetConstants.metadata.keySchema,
+            {
+              id: `0x${starbaseHash}` as `0x${string}`,
+            },
+          );
+          const planetConstants = getComponentValue(
+            PlanetConstants,
+            planetEntityKey,
+          );
+
+          if (planetConstants) {
+            const location: WorldLocation = {
+              hash: starbaseHash,
+              coords: { x: tx.intent.x, y: tx.intent.y },
+              perlin: planetConstants.perlin,
+              biomebase: gameManager.biomebasePerlin(
+                { x: tx.intent.x, y: tx.intent.y },
+                true,
+              ),
+            };
+
+            // Add the starbase location to the game (this will also insert it into layeredMap)
+            // Note: We don't mark it as revealed here because the reveal transaction hasn't been confirmed yet
+            // The reveal handler will handle marking it as revealed and making it fully visible
+            gameManager.getGameObjects().addPlanetLocation(location);
+
+            // Refresh the starbase planet data from the contract
+            // This loads the planet data even though it's not revealed yet
+            gameManager.hardRefreshPlanet(starbaseHash);
+
+            // Ensure isInContract and syncedWithContract are set (makes planet usable)
+            const starbasePlanet = gameManager
+              .getGameObjects()
+              .getPlanetWithId(starbaseHash);
+            if (starbasePlanet) {
+              if (
+                !starbasePlanet.isInContract ||
+                !starbasePlanet.syncedWithContract
+              ) {
+                gameManager.getGameObjects().updatePlanet(starbaseHash, (p) => {
+                  p.isInContract = true;
+                  p.syncedWithContract = true;
+                });
+              }
+            }
+
+            // Create a chunk for the starbase location to persist it to IndexedDB
+            // This ensures the starbase is remembered even after page reload
+            const chunkFootprint = getChunkOfSideLengthContainingPoint(
+              location.coords,
+              MIN_CHUNK_SIZE,
+            );
+            const chunk: Chunk = {
+              chunkFootprint,
+              planetLocations: [location],
+              perlin: location.perlin,
+            };
+            gameManager.addNewChunk(chunk);
+
+            // Note: We don't mark as revealed or force tick here - the reveal handler will do that
+            // This prevents the starbase from appearing before it's actually revealed on-chain
+          }
+
+          // Refresh the source planet (to update materials)
+          await gameManager.hardRefreshPlanet(tx.intent.sourcePlanetHash);
+
+          // Emit planet update event to trigger UI refresh
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
         } else if (isUnconfirmedAddJunkTx(tx)) {
           // Wait a bit for MUD components to sync after transaction confirmation
           // Materials (like SOLAR_ENERGY) are stored in MUD tables (PlanetMaterial), so we need to wait
@@ -517,6 +986,163 @@ export class GameManagerFactory {
             GameManagerEvent.ArtifactUpdate,
             tx.intent.spaceshipId,
           );
+          gameManager.emit(GameManagerEvent.ArtifactUpdate, tx.intent.moduleId);
+        } else if (isUnconfirmedInstallStarbaseModuleTx(tx)) {
+          // Wait for MUD sync, then refresh starbase planet and module artifact
+          await delay(500);
+          await gameManager.hardRefreshPlanet(tx.intent.starbaseHash);
+          await gameManager.hardRefreshArtifact(tx.intent.moduleId);
+          // Update renderer starbase module counts state
+          try {
+            const { StarBaseModuleInstalled } = components;
+            const valuesAny = (
+              StarBaseModuleInstalled as unknown as { values?: unknown }
+            ).values as Record<string, unknown> | undefined;
+            const sbMap =
+              (valuesAny?.["starbaseHash"] as Map<unknown, unknown>) ||
+              undefined;
+            const slotTypeMap =
+              (valuesAny?.["moduleSlotType"] as Map<unknown, unknown>) ||
+              undefined;
+            const installedFlagMap =
+              (valuesAny?.["installed"] as Map<unknown, unknown>) || undefined;
+            let weapons = 0;
+            let hull = 0;
+            let shield = 0;
+            const modules: Array<{
+              artifactId: string;
+              slotType: number;
+            }> = [];
+            if (sbMap && slotTypeMap && installedFlagMap) {
+              const planetHex = locationIdToHexStr(
+                tx.intent.starbaseHash,
+              ).toLowerCase();
+              for (const [key, sbh] of sbMap.entries()) {
+                if (
+                  (
+                    installedFlagMap as unknown as {
+                      get: (k: unknown) => unknown;
+                    }
+                  ).get(key) !== true
+                )
+                  continue;
+                const storedHex =
+                  typeof sbh === "string"
+                    ? (sbh as string).toLowerCase()
+                    : String(sbh).toLowerCase();
+                if (storedHex !== planetHex) continue;
+                const slotType = Number(
+                  (
+                    slotTypeMap as unknown as {
+                      get: (k: unknown) => unknown;
+                    }
+                  ).get(key) ?? 0,
+                );
+                if (slotType === 1) weapons += 1;
+                else if (slotType === 3) hull += 1;
+                else if (slotType === 4) shield += 1;
+
+                // Extract artifact ID from key
+                const keyString = key.toString();
+                const hexMatch = keyString.match(/0x([0-9a-fA-F]+)/);
+                if (
+                  hexMatch &&
+                  (slotType === 1 || slotType === 3 || slotType === 4)
+                ) {
+                  const artifactId = artifactIdFromHexStr("0x" + hexMatch[1]);
+                  modules.push({ artifactId, slotType });
+                }
+              }
+            }
+            setStarbaseModuleCounts(
+              tx.intent.starbaseHash,
+              weapons,
+              hull,
+              shield,
+            );
+            setStarbaseModules(tx.intent.starbaseHash, modules);
+          } catch {
+            /* noop */
+          }
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
+          gameManager.emit(GameManagerEvent.ArtifactUpdate, tx.intent.moduleId);
+        } else if (isUnconfirmedUninstallStarbaseModuleTx(tx)) {
+          await delay(500);
+          await gameManager.hardRefreshPlanet(tx.intent.starbaseHash);
+          await gameManager.hardRefreshArtifact(tx.intent.moduleId);
+          // Update renderer starbase module counts state
+          try {
+            const { StarBaseModuleInstalled } = components;
+            const valuesAny = (
+              StarBaseModuleInstalled as unknown as { values?: unknown }
+            ).values as Record<string, unknown> | undefined;
+            const sbMap =
+              (valuesAny?.["starbaseHash"] as Map<unknown, unknown>) ||
+              undefined;
+            const slotTypeMap =
+              (valuesAny?.["moduleSlotType"] as Map<unknown, unknown>) ||
+              undefined;
+            const installedFlagMap =
+              (valuesAny?.["installed"] as Map<unknown, unknown>) || undefined;
+            let weapons = 0;
+            let hull = 0;
+            let shield = 0;
+            const modules: Array<{
+              artifactId: string;
+              slotType: number;
+            }> = [];
+            if (sbMap && slotTypeMap && installedFlagMap) {
+              const planetHex = locationIdToHexStr(
+                tx.intent.starbaseHash,
+              ).toLowerCase();
+              for (const [key, sbh] of sbMap.entries()) {
+                if (
+                  (
+                    installedFlagMap as unknown as {
+                      get: (k: unknown) => unknown;
+                    }
+                  ).get(key) !== true
+                )
+                  continue;
+                const storedHex =
+                  typeof sbh === "string"
+                    ? (sbh as string).toLowerCase()
+                    : String(sbh).toLowerCase();
+                if (storedHex !== planetHex) continue;
+                const slotType = Number(
+                  (
+                    slotTypeMap as unknown as {
+                      get: (k: unknown) => unknown;
+                    }
+                  ).get(key) ?? 0,
+                );
+                if (slotType === 1) weapons += 1;
+                else if (slotType === 3) hull += 1;
+                else if (slotType === 4) shield += 1;
+
+                // Extract artifact ID from key
+                const keyString = key.toString();
+                const hexMatch = keyString.match(/0x([0-9a-fA-F]+)/);
+                if (
+                  hexMatch &&
+                  (slotType === 1 || slotType === 3 || slotType === 4)
+                ) {
+                  const artifactId = artifactIdFromHexStr("0x" + hexMatch[1]);
+                  modules.push({ artifactId, slotType });
+                }
+              }
+            }
+            setStarbaseModuleCounts(
+              tx.intent.starbaseHash,
+              weapons,
+              hull,
+              shield,
+            );
+            setStarbaseModules(tx.intent.starbaseHash, modules);
+          } catch {
+            /* noop */
+          }
+          gameManager.emit(GameManagerEvent.PlanetUpdate);
           gameManager.emit(GameManagerEvent.ArtifactUpdate, tx.intent.moduleId);
         } else if (
           isUnconfirmedChargeArtifactTx(tx) ||
@@ -691,6 +1317,81 @@ export class GameManagerFactory {
     // if they haven't, we'll do this once the player has joined the game
     if (!!homeLocation && initialState.players.has(account as string)) {
       gameManager.initMiningManager(homeLocation.coords);
+    }
+
+    // Populate initial starbase module counts for renderer (first frame)
+    try {
+      const { StarBaseModuleInstalled } = components;
+      const valuesAny = (
+        StarBaseModuleInstalled as unknown as { values?: unknown }
+      ).values as Record<string, unknown> | undefined;
+      const sbMap =
+        (valuesAny?.["starbaseHash"] as Map<unknown, unknown>) || undefined;
+      const slotTypeMap =
+        (valuesAny?.["moduleSlotType"] as Map<unknown, unknown>) || undefined;
+      const installedFlagMap =
+        (valuesAny?.["installed"] as Map<unknown, unknown>) || undefined;
+      if (sbMap && slotTypeMap && installedFlagMap) {
+        const aggregate: Record<
+          string,
+          { weapons: number; hull: number; shield: number }
+        > = {};
+        const modulesByStarbase: Record<
+          string,
+          Array<{ artifactId: string; slotType: number }>
+        > = {};
+        for (const [key, sbh] of sbMap.entries()) {
+          if (
+            (
+              installedFlagMap as unknown as { get: (k: unknown) => unknown }
+            ).get(key) !== true
+          )
+            continue;
+          const storedHex =
+            typeof sbh === "string"
+              ? (sbh as string).toLowerCase()
+              : String(sbh).toLowerCase();
+          const slotType = Number(
+            (slotTypeMap as unknown as { get: (k: unknown) => unknown }).get(
+              key,
+            ) ?? 0,
+          );
+          const normId = storedHex.startsWith("0x")
+            ? storedHex.slice(2)
+            : storedHex;
+          const id = normId.padStart(64, "0");
+          if (!aggregate[id])
+            aggregate[id] = {
+              weapons: 0,
+              hull: 0,
+              shield: 0,
+            };
+          if (slotType === 1) aggregate[id].weapons += 1;
+          else if (slotType === 3) aggregate[id].hull += 1;
+          else if (slotType === 4) aggregate[id].shield += 1;
+
+          // Store module info
+          if (slotType === 1 || slotType === 3 || slotType === 4) {
+            if (!modulesByStarbase[id]) {
+              modulesByStarbase[id] = [];
+            }
+            const keyString = key.toString();
+            const hexMatch = keyString.match(/0x([0-9a-fA-F]+)/);
+            if (hexMatch) {
+              const artifactId = artifactIdFromHexStr("0x" + hexMatch[1]);
+              modulesByStarbase[id].push({ artifactId, slotType });
+            }
+          }
+        }
+        for (const [id, c] of Object.entries(aggregate)) {
+          setStarbaseModuleCounts(id, c.weapons, c.hull, c.shield);
+          if (modulesByStarbase[id]) {
+            setStarbaseModules(id, modulesByStarbase[id]);
+          }
+        }
+      }
+    } catch {
+      /* noop */
     }
 
     return gameManager;

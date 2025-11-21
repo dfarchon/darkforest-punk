@@ -80,6 +80,7 @@ export const PlanetType = {
   TRADING_POST: 4 as PlanetType,
   SILVER_BANK: 5 as PlanetType,
   SUN: 6 as PlanetType,
+  STARBASE: 7 as PlanetType,
 } as const;
 
 /**
@@ -93,6 +94,7 @@ export const PlanetTypeNames = {
   [PlanetType.TRADING_POST]: "Spacetime Rip",
   [PlanetType.SILVER_BANK]: "Quasar",
   [PlanetType.SUN]: "Sun",
+  [PlanetType.STARBASE]: "Starbase",
 } as const;
 /**
  * Abstract type representing a planet flag type.

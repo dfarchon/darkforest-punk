@@ -409,12 +409,70 @@ export class ContractsAPI extends EventEmitter {
     this.revealedPlanetSubscription =
       this.components.RevealedPlanet.update$.subscribe((update) => {
         const entity = update.entity;
-        const [nextValue] = update.value;
+        const [nextValue, prevValue] = update.value;
 
-        if (nextValue) {
-          const planetId = locationIdFromHexStr(entity.toString());
+        // Only process new reveals (when nextValue exists and prevValue doesn't)
+        if (nextValue && !prevValue) {
+          const planetHex = entity.toString();
+
+          // Check if this is a starbase by reading PlanetConstants
+          // Starbases can have hashes that exceed LOCATION_ID_UB, so we need to handle them differently
+          // Try to get PlanetConstants - if it fails, we'll handle it gracefully
+          let planetConstants = null;
+          let isStarbase = false;
+
+          try {
+            const planetConstantsEntityKey = encodeEntity(
+              this.components.PlanetConstants.metadata.keySchema,
+              {
+                id: planetHex as `0x${string}`,
+              },
+            );
+            planetConstants = getComponentValue(
+              this.components.PlanetConstants,
+              planetConstantsEntityKey,
+            );
+            isStarbase = planetConstants && planetConstants.planetType === 7; // PlanetType.STARBASE = 7
+          } catch (error) {
+            // If we can't get PlanetConstants, try to determine if it's a starbase by hash size
+            // Starbase hashes are keccak256 which can be larger than LOCATION_ID_UB
+            console.warn(
+              `Could not get PlanetConstants for ${planetHex}, trying to determine type from hash`,
+            );
+          }
+
+          let planetId: LocationId;
+
+          if (isStarbase) {
+            // For starbases, use the hex string directly as LocationId (without LOCATION_ID_UB validation)
+            const starbaseHash = planetHex.startsWith("0x")
+              ? planetHex.slice(2).toLowerCase().padStart(64, "0")
+              : planetHex.toLowerCase().padStart(64, "0");
+            planetId = starbaseHash as LocationId;
+          } else {
+            // For regular planets, convert using locationIdFromHexStr
+            try {
+              planetId = locationIdFromHexStr(planetHex);
+            } catch (error) {
+              // If conversion fails, it might be a starbase with a hash that exceeds LOCATION_ID_UB
+              // Try treating it as a starbase
+              console.warn(
+                `locationIdFromHexStr failed for ${planetHex}, treating as starbase`,
+              );
+              const starbaseHash = planetHex.startsWith("0x")
+                ? planetHex.slice(2).toLowerCase().padStart(64, "0")
+                : planetHex.toLowerCase().padStart(64, "0");
+              planetId = starbaseHash as LocationId;
+            }
+          }
+
           const playerId = hexToEthAddress(
             nextValue.revealer.toString() as Hex,
+          );
+
+          // Emit LocationRevealed event - this will trigger the handler in GameManagerFactory
+          console.log(
+            `[RevealedPlanet Subscription] Emitting LocationRevealed for ${planetId}, isStarbase: ${isStarbase}`,
           );
           this.emit(ContractsAPIEvent.LocationRevealed, planetId, playerId);
         }
@@ -1655,7 +1713,7 @@ export class ContractsAPI extends EventEmitter {
     // startingAt: number,
     onProgress?: (fractionCompleted: number) => void,
   ): Promise<LocationId[]> {
-    const { Planet } = this.components;
+    const { Planet, PlanetConstants } = this.components;
     const planets = [...runQuery([Has(Planet)])];
     const nPlanets: number = planets.length;
     const result = [];
@@ -1666,11 +1724,37 @@ export class ContractsAPI extends EventEmitter {
     await sleep(1);
 
     for (let i = 0; i < nPlanets; i++) {
-      // NOTE: may need serde function here
-      const locationId = locationIdFromHexStr(
-        planets[i].toString(),
-      ) as LocationId;
-      result.push(locationId);
+      const planetEntity = planets[i];
+      const planetHex = planetEntity.toString();
+
+      // Check if this is a starbase by reading PlanetConstants
+      const planetEntityKey = encodeEntity(PlanetConstants.metadata.keySchema, {
+        id: planetHex as `0x${string}`,
+      });
+      const planetConstants = getComponentValue(
+        PlanetConstants,
+        planetEntityKey,
+      );
+
+      // Skip starbases (PlanetType.STARBASE = 7) as their hashes may exceed LOCATION_ID_UB
+      // Starbases are handled separately and don't need to be in touched planet IDs
+      if (planetConstants && planetConstants.planetType === 7) {
+        // Skip starbase - continue to next planet
+        onProgress && onProgress((i + 1) / nPlanets);
+        continue;
+      }
+
+      try {
+        // NOTE: may need serde function here
+        const locationId = locationIdFromHexStr(planetHex) as LocationId;
+        result.push(locationId);
+      } catch (error) {
+        // If conversion fails (e.g., hash exceeds LOCATION_ID_UB), skip this planet
+        // This can happen for non-standard planets or if there's a data inconsistency
+        console.warn(
+          `Skipping planet ${planetHex}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
       onProgress && onProgress((i + 1) / nPlanets);
     }
     return result;
@@ -1715,19 +1799,73 @@ export class ContractsAPI extends EventEmitter {
     // onProgressIds?: (fractionCompleted: number) => void,
     onProgressCoords?: (fractionCompleted: number) => void,
   ): RevealedCoords[] {
-    const { RevealedPlanet } = this.components;
+    const { RevealedPlanet, PlanetConstants } = this.components;
     const planetIds = [...runQuery([Has(RevealedPlanet)])];
     const result: RevealedCoords[] = [];
     const nPlanetIds = planetIds.length;
 
     for (let i = 0; i < nPlanetIds; i++) {
-      const planetId = locationIdFromHexStr(planetIds[i].toString());
+      const planetEntity = planetIds[i];
+      const planetHex = planetEntity.toString();
 
-      const revealedCoords = this.getRevealedCoordsByIdIfExists(planetId);
-      if (!revealedCoords) {
+      // Check if this is a starbase by reading PlanetConstants
+      const planetEntityKey = encodeEntity(PlanetConstants.metadata.keySchema, {
+        id: planetHex as `0x${string}`,
+      });
+      const planetConstants = getComponentValue(
+        PlanetConstants,
+        planetEntityKey,
+      );
+      const isStarbase = planetConstants && planetConstants.planetType === 7;
+
+      // Get RevealedPlanet data
+      const revealedPlanetEntity = encodeEntity(
+        RevealedPlanet.metadata.keySchema,
+        {
+          id: planetHex as `0x${string}`,
+        },
+      );
+      const revealedPlanet = getComponentValue(
+        RevealedPlanet,
+        revealedPlanetEntity,
+      );
+
+      if (!revealedPlanet) {
+        onProgressCoords && onProgressCoords((i + 1) / nPlanetIds);
         continue;
       }
-      result.push(revealedCoords);
+
+      if (isStarbase) {
+        // For starbases, create RevealedCoords directly without LOCATION_ID_UB validation
+        // Convert hex string to LocationId format (64-char hex without 0x prefix)
+        const starbaseHash = planetHex.startsWith("0x")
+          ? planetHex.slice(2).toLowerCase().padStart(64, "0")
+          : planetHex.toLowerCase().padStart(64, "0");
+
+        const revealedCoords: RevealedCoords = {
+          x: revealedPlanet.x as number,
+          y: revealedPlanet.y as number,
+          revealer: revealedPlanet.revealer as EthAddress,
+          hash: starbaseHash as LocationId,
+        };
+        result.push(revealedCoords);
+      } else {
+        // For regular planets, use the existing validation logic
+        try {
+          const planetId = locationIdFromHexStr(planetHex);
+          const revealedCoords = this.getRevealedCoordsByIdIfExists(planetId);
+          if (!revealedCoords) {
+            onProgressCoords && onProgressCoords((i + 1) / nPlanetIds);
+            continue;
+          }
+          result.push(revealedCoords);
+        } catch (error) {
+          // If conversion fails (e.g., hash exceeds LOCATION_ID_UB), skip this planet
+          console.warn(
+            `Skipping revealed planet ${planetHex}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       onProgressCoords && onProgressCoords((i + 1) / nPlanetIds);
     }
 

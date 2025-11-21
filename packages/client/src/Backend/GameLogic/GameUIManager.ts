@@ -137,6 +137,8 @@ export class GameUIManager extends EventEmitter {
    * indicates whether or not the player is currently selecting a target planet.
    */
   private isChoosingTargetPlanet = false;
+  private choosingStarbaseLocationPlanet: LocatablePlanet | undefined =
+    undefined;
 
   private onChooseTargetPlanet?: (planet: LocatablePlanet | undefined) => void;
 
@@ -634,6 +636,25 @@ export class GameUIManager extends EventEmitter {
     );
   }
 
+  public createStarBase(
+    sourcePlanetHash: LocationId,
+    x: number,
+    y: number,
+    level: number,
+    spaceType: number,
+    starbaseType: number = 0, // Default to 0 (DEFAULT) if not specified
+  ) {
+    this.playClickSound();
+    this.gameManager.createStarBase(
+      sourcePlanetHash,
+      x,
+      y,
+      level,
+      spaceType,
+      starbaseType,
+    );
+  }
+
   public revertMove(
     moveId: string,
     toPlanetHash: LocationId,
@@ -856,6 +877,16 @@ export class GameUIManager extends EventEmitter {
 
   getIsChoosingTargetPlanet() {
     return this.isChoosingTargetPlanet;
+  }
+
+  public setChoosingStarbaseLocationPlanet(
+    planet: LocatablePlanet | undefined,
+  ): void {
+    this.choosingStarbaseLocationPlanet = planet;
+  }
+
+  public getChoosingStarbaseLocationPlanet(): LocatablePlanet | undefined {
+    return this.choosingStarbaseLocationPlanet;
   }
 
   getLinkSourceArtifactType() {

@@ -1,7 +1,6 @@
 import { isUnconfirmedUpgradeTx } from "@df/serde";
-import type { LocationId, Planet, UpgradeBranchName } from "@df/types";
-import { PlanetType } from "@df/types";
-import React from "react";
+import type { LocationId, Planet } from "@df/types";
+import { PlanetType, UpgradeBranchName } from "@df/types";
 import styled from "styled-components";
 
 import {
@@ -76,10 +75,13 @@ const getUpgradeStatusMessage = (
   branchAtMaxRank: boolean,
   enoughSilver: boolean,
   branch: UpgradeBranchName,
+  canUpgradeBranch?: boolean,
 ) => {
   if (planetAtMaxRank) return <Red>Planet at Max Rank</Red>;
   if (branchAtMaxRank) return <Red>{upgradeName(branch)} at Max Rank</Red>;
   if (!enoughSilver) return <Red>Not Enough Silver</Red>;
+  if (canUpgradeBranch === false)
+    return <Red>Asteroid Field can only be upgraded once</Red>;
   return null;
 };
 
@@ -104,7 +106,9 @@ export function UpgradeDetailsPane({
     if (gameManager.checkDelegateCondition(planet.owner, account) === false) {
       // Empty block
     } else if (
-      planet.planetType !== PlanetType.PLANET ||
+      (planet.planetType !== PlanetType.PLANET &&
+        planet.planetType !== PlanetType.STARBASE &&
+        planet.planetType !== PlanetType.SILVER_MINE) ||
       planet.silverCap === 0
     ) {
       return (
@@ -113,15 +117,42 @@ export function UpgradeDetailsPane({
         </CenterBackgroundSubtext>
       );
     } else {
+      // For SILVER_MINE (ASTEROID_FIELD): show all branches but only allow one upgrade total
+      // For PLANET and STARBASE: show all three branches
+      const isSilverMine = planet.planetType === PlanetType.SILVER_MINE;
+
+      let tabTitles: string[] = [];
+      let allowedBranches: UpgradeBranchName[] = [];
+
+      if (isSilverMine) {
+        // ASTEROID_FIELD: show all three branches, user can choose any one (or two for level 9)
+        tabTitles = ["Defense", "Range", "Speed"];
+        allowedBranches = [
+          UpgradeBranchName.Defense,
+          UpgradeBranchName.Range,
+          UpgradeBranchName.Speed,
+        ];
+      } else {
+        // PLANET and STARBASE: all three branches
+        tabTitles = ["Defense", "Range", "Speed"];
+        allowedBranches = [
+          UpgradeBranchName.Defense,
+          UpgradeBranchName.Range,
+          UpgradeBranchName.Speed,
+        ];
+      }
+
       return (
         <TabbedView
-          tabTitles={["Defense", "Range", "Speed"]}
-          tabContents={(branch: UpgradeBranchName) => {
-            const currentLevel = planet.upgradeState[branch];
-            const branchAtMaxRank = !planet || planet.upgradeState[branch] >= 4;
+          tabTitles={tabTitles}
+          tabContents={(branchIndex: number) => {
+            const upgradeBranch = allowedBranches[branchIndex];
+            const currentLevel = planet.upgradeState[upgradeBranch];
+            const branchAtMaxRank =
+              !planet || planet.upgradeState[upgradeBranch] >= 4;
             const upgrade = branchAtMaxRank
               ? undefined
-              : uiManager.getUpgrade(branch, currentLevel);
+              : uiManager.getUpgrade(upgradeBranch, currentLevel);
 
             const totalLevel = planet.upgradeState.reduce((a, b) => a + b);
             const silverNeeded = Math.floor(
@@ -131,15 +162,27 @@ export function UpgradeDetailsPane({
             const isPendingUpgrade = planet.transactions?.hasTransaction(
               isUnconfirmedUpgradeTx,
             );
+
+            // For ASTEROID_FIELD: only allow one upgrade total (one-time upgrade)
+            let canUpgradeBranch = true;
+            if (isSilverMine) {
+              // ASTEROID_FIELD can only be upgraded once total
+              // If it has already been upgraded (totalLevel > 0), no more upgrades allowed
+              if (totalLevel > 0) {
+                canUpgradeBranch = false;
+              }
+            }
+
             const canUpgrade =
               enoughSilver &&
               !planetAtMaxRank &&
               !branchAtMaxRank &&
-              !isPendingUpgrade;
+              !isPendingUpgrade &&
+              canUpgradeBranch;
 
-            const doUpgrade = (branch: UpgradeBranchName) => {
+            const doUpgrade = () => {
               if (canUpgrade) {
-                uiManager.upgrade(planet, branch);
+                uiManager.upgrade(planet, upgradeBranch);
               }
             };
 
@@ -149,7 +192,7 @@ export function UpgradeDetailsPane({
                   <UpgradePreview
                     upgrade={upgrade}
                     planet={planet}
-                    branchName={branch}
+                    branchName={upgradeBranch}
                     cantUpgrade={planetAtMaxRank || branchAtMaxRank}
                   />
                 </SectionPreview>
@@ -168,17 +211,15 @@ export function UpgradeDetailsPane({
                       </Btn>
                     ) : (
                       <>
-                        <Btn
-                          onClick={() => doUpgrade(branch)}
-                          disabled={!canUpgrade}
-                        >
+                        <Btn onClick={doUpgrade} disabled={!canUpgrade}>
                           {"Upgrade"}
                         </Btn>{" "}
                         {getUpgradeStatusMessage(
                           planetAtMaxRank,
                           branchAtMaxRank,
                           enoughSilver,
-                          branch,
+                          upgradeBranch,
+                          canUpgradeBranch,
                         )}
                       </>
                     )}

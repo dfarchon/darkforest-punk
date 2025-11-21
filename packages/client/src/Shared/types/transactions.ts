@@ -38,9 +38,12 @@ export type ContractMethodName =
   | "df__withdrawMaterial"
   | "df__craftSpaceship"
   | "df__craftModule"
+  | "df__createStarBase"
   | "df__upgradeFoundry"
   | "df__installModule"
   | "df__uninstallModule"
+  | "df__installStarbaseModule"
+  | "df__uninstallStarbaseModule"
   | "df__addJunk"
   | "df__clearJunk"
   | "df__buyJunk"
@@ -317,6 +320,23 @@ export type UnconfirmedCraftModule = TxIntent & {
 /**
  * @hidden
  */
+export type UnconfirmedCreateStarBase = TxIntent & {
+  methodName: "df__createStarBase";
+  sourcePlanetHash: LocationId;
+  starbaseHash: LocationId;
+  owner: string;
+  perlin: number;
+  level: number;
+  spaceType: number;
+  starbaseType: number; // 0=Default, 1=Research, 2=Trade
+  // Keep x, y for client-side location creation (not passed to contract)
+  x: number;
+  y: number;
+};
+
+/**
+ * @hidden
+ */
 export type UnconfirmedUpgradeFoundry = TxIntent & {
   methodName: "df__upgradeFoundry";
   foundryHash: LocationId;
@@ -340,6 +360,24 @@ export type UnconfirmedUninstallModule = TxIntent & {
   spaceshipId: ArtifactId;
   moduleId: ArtifactId;
   planetHash: LocationId;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedInstallStarbaseModule = TxIntent & {
+  methodName: "df__installStarbaseModule";
+  starbaseHash: LocationId;
+  moduleId: ArtifactId;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedUninstallStarbaseModule = TxIntent & {
+  methodName: "df__uninstallStarbaseModule";
+  starbaseHash: LocationId;
+  moduleId: ArtifactId;
 };
 
 /**

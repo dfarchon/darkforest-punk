@@ -4,6 +4,7 @@ pragma solidity >=0.8.24;
 import { BaseSystem } from "systems/internal/BaseSystem.sol";
 import { Planet } from "libraries/Planet.sol";
 import { Artifact } from "libraries/Artifact.sol";
+import { PlanetType } from "codegen/common.sol";
 import { DFUtils } from "libraries/DFUtils.sol";
 import { GlobalStats } from "codegen/tables/GlobalStats.sol";
 import { PlayerStats } from "codegen/tables/PlayerStats.sol";
@@ -132,29 +133,19 @@ contract SpaceshipModuleSystem is BaseSystem {
     if (planet.owner != executor) revert Errors.NotPlanetOwner();
 
     // Verify spaceship artifact exists and is on this planet
-    // ArtifactOwner is the source of truth for artifact location
-    bytes32 spaceshipPlanetHash = ArtifactOwner.get(spaceshipId);
-    if (spaceshipPlanetHash == bytes32(0)) {
-      revert Errors.ArtifactNotOnPlanet1();
+    if (!planet.artifactStorage.Has(uint256(spaceshipId))) {
+      revert Errors.ArtifactNotOnPlanet();
     }
-    if (uint256(spaceshipPlanetHash) != planet.planetHash) {
-      revert Errors.ArtifactNotOnPlanet1();
+
+    // Verify module artifact exists and is on this planet
+    if (!planet.artifactStorage.Has(uint256(moduleId))) {
+      revert Errors.ArtifactNotOnPlanet();
     }
 
     // Verify spaceship is actually a spaceship (artifactIndex = 3)
     ArtifactData memory spaceshipArtifactData = ArtifactTable.get(spaceshipId);
     if (spaceshipArtifactData.artifactIndex != 3) {
       revert Errors.InvalidSpaceshipArtifact();
-    }
-
-    // Verify module artifact exists and is on this planet
-    // ArtifactOwner is the source of truth for artifact location
-    bytes32 modulePlanetHash = ArtifactOwner.get(moduleId);
-    if (modulePlanetHash == bytes32(0)) {
-      revert Errors.ArtifactNotOnPlanet2();
-    }
-    if (uint256(modulePlanetHash) != planet.planetHash) {
-      revert Errors.ArtifactNotOnPlanet2();
     }
 
     // Verify module is actually a module (artifactIndex = 23)

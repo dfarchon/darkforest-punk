@@ -19,9 +19,12 @@ import type {
   UnconfirmedChargeArtifact,
   UnconfirmedCraftSpaceship,
   UnconfirmedCraftModule,
+  UnconfirmedCreateStarBase,
   UnconfirmedUpgradeFoundry,
   UnconfirmedInstallModule,
+  UnconfirmedInstallStarbaseModule,
   UnconfirmedUninstallModule,
+  UnconfirmedUninstallStarbaseModule,
   UnconfirmedClaim,
   UnconfirmedClearJunk,
   UnconfirmedCreateGuild,
@@ -209,6 +212,18 @@ export function isUnconfirmedCraftModuleTx(
   return isUnconfirmedCraftModule(tx.intent);
 }
 
+export function isUnconfirmedCreateStarBase(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedCreateStarBase {
+  return txIntent.methodName === "df__createStarBase";
+}
+
+export function isUnconfirmedCreateStarBaseTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedCreateStarBase> {
+  return isUnconfirmedCreateStarBase(tx.intent);
+}
+
 export function isUnconfirmedInstallModule(
   txIntent: TxIntent,
 ): txIntent is UnconfirmedInstallModule {
@@ -221,6 +236,18 @@ export function isUnconfirmedInstallModuleTx(
   return isUnconfirmedInstallModule(tx.intent);
 }
 
+export function isUnconfirmedInstallStarbaseModule(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedInstallStarbaseModule {
+  return txIntent.methodName === "df__installStarbaseModule";
+}
+
+export function isUnconfirmedInstallStarbaseModuleTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedInstallStarbaseModule> {
+  return isUnconfirmedInstallStarbaseModule(tx.intent);
+}
+
 export function isUnconfirmedUninstallModule(
   txIntent: TxIntent,
 ): txIntent is UnconfirmedUninstallModule {
@@ -231,6 +258,18 @@ export function isUnconfirmedUninstallModuleTx(
   tx: Transaction,
 ): tx is Transaction<UnconfirmedUninstallModule> {
   return isUnconfirmedUninstallModule(tx.intent);
+}
+
+export function isUnconfirmedUninstallStarbaseModule(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedUninstallStarbaseModule {
+  return txIntent.methodName === "df__uninstallStarbaseModule";
+}
+
+export function isUnconfirmedUninstallStarbaseModuleTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedUninstallStarbaseModule> {
+  return isUnconfirmedUninstallStarbaseModule(tx.intent);
 }
 
 export function isUnconfirmedUpgradeFoundry(

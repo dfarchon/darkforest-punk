@@ -16,6 +16,8 @@ import type { ModalHandle } from "../Views/ModalPane";
 import { TabbedView } from "../Views/TabbedView";
 import ModuleCraftingPane from "./ModuleCraftingPane";
 import SpaceshipCraftingPane from "./SpaceshipCraftingPane";
+import StarbaseCraftingPane from "./StarbaseCraftingPane";
+import { StarbaseModuleManagementPane } from "./StarbaseModuleManagementPane";
 import { TooltipTrigger } from "./Tooltip";
 
 const PlanetMaterialsWrapper = styled.div`
@@ -601,11 +603,20 @@ export function PlanetMaterialsPane({
     ) || [];
 
   const isFoundry = planet.planetType === PlanetType.RUINS;
+  const isPlanet = planet.planetType === PlanetType.PLANET;
+  const isStarbase = planet.planetType === PlanetType.STARBASE;
+  const canCraftStarbase = isPlanet && planet.planetLevel >= 4;
 
   // Build tabs dynamically based on planet type
   const tabTitles: string[] = ["Materials"];
   if (isFoundry) {
     tabTitles.push("Craft");
+  }
+  if (canCraftStarbase) {
+    tabTitles.push("Craft Starbase");
+  }
+  if (isStarbase) {
+    tabTitles.push("Starbase Modules");
   }
 
   const tabContents = (tabIndex: number) => {
@@ -815,6 +826,26 @@ export function PlanetMaterialsPane({
           )}
         </CraftingWrapper>
       );
+    } else if (
+      (tabIndex === 1 && canCraftStarbase && !isFoundry) ||
+      (tabIndex === 2 && canCraftStarbase && isFoundry)
+    ) {
+      // Starbase crafting tab (for PLANET type, level 4+)
+      // Tab index is 1 if no foundry, 2 if foundry exists
+      return (
+        <StarbaseCraftingPane
+          planet={planet}
+          onClose={() => {}}
+          onCraftComplete={() => {}}
+        />
+      );
+    } else if (
+      (tabIndex === 1 && isStarbase && !isFoundry && !canCraftStarbase) ||
+      (tabIndex === 2 && isStarbase && isFoundry && !canCraftStarbase) ||
+      (tabIndex === 3 && isStarbase && isFoundry && canCraftStarbase)
+    ) {
+      // Starbase Modules management tab (visible on STARBASE planets)
+      return <StarbaseModuleManagementPane planetId={planet.locationId} />;
     }
     return null;
   };

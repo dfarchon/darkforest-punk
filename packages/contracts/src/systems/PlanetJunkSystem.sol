@@ -87,6 +87,12 @@ contract PlanetJunkSystem is BaseSystem {
   }
 
   function _verifyBiomeProof(Planet memory planet, uint256 biomeBase, Proof memory proof) internal {
+    // Skip biome proof verification for starbases since they use custom perlin calculation
+    // and don't follow the procedural planet hash/biomebase relationship
+    if (planet.planetType == PlanetType.STARBASE) {
+      return; // Starbases don't need biome proof verification
+    }
+
     BiomebaseInput memory input;
     input.planetHash = planet.planetHash;
     input.biomebase = biomeBase;
@@ -110,6 +116,12 @@ contract PlanetJunkSystem is BaseSystem {
       }
     } else if (planet.planetType == PlanetType.SUN) {
       // Initialize SOLAR_ENERGY for SUN planets
+      MaterialType[] memory allowed = PlanetLib.allowedMaterialsForPlanetType(planet.planetType);
+      for (uint256 i; i < allowed.length; i++) {
+        planet.initMaterial(allowed[i]);
+      }
+    } else if (planet.planetType == PlanetType.STARBASE) {
+      // Initialize materials for STARBASE planets
       MaterialType[] memory allowed = PlanetLib.allowedMaterialsForPlanetType(planet.planetType);
       for (uint256 i; i < allowed.length; i++) {
         planet.initMaterial(allowed[i]);

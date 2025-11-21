@@ -633,6 +633,13 @@ export class GameObjects {
         // After junk is added for other planet types, read materials from contract
         planet.materials = this.planetUtils.readMaterials(planet);
       }
+    } else if (planet.planetType === PlanetType.STARBASE) {
+      // For starbases, try to get location from RevealedPlanet table if not in map
+      const revealedLoc = this.revealedLocations.get(planet.locationId);
+      if (revealedLoc) {
+        (planet as LocatablePlanet).location = revealedLoc;
+        (planet as LocatablePlanet).biome = this.getBiome(revealedLoc);
+      }
     }
     if (revealedLocation) {
       this.markLocationRevealed(revealedLocation);
@@ -758,13 +765,58 @@ export class GameObjects {
     }
   }
 
+  /**
+   * Reindex a planet's location in the layered map using its final planetLevel
+   * without modifying planetLocationMap or planet data. Use when level changes
+   * (e.g., after contract refresh) to move between quadtrees without flicker.
+   * Idempotent if level didn't change.
+   */
+  public reindexPlanetInLayeredMap(planetId: LocationId): void {
+    const planet = this.getPlanetWithId(planetId, false);
+    const location = this.planetLocationMap.get(planetId);
+    if (!location || !planet) {
+      return;
+    }
+    const planetX = location.coords.x;
+    const planetY = location.coords.y;
+    const distFromOrigin = Math.sqrt(planetX ** 2 + planetY ** 2);
+
+    // Remove from previous level's quadtree (if present)
+    this.layeredMap.removePlanet(
+      location,
+      this.planetLevelFromHexPerlin(
+        location.hash,
+        location.perlin,
+        distFromOrigin,
+      ),
+    );
+
+    // Insert using the current planet.planetLevel
+    this.layeredMap.insertPlanet(location, planet.planetLevel as number);
+  }
   // marks that a location is revealed on-chain
   public markLocationRevealed(revealedLocation: RevealedLocation): void {
     this.revealedLocations.set(revealedLocation.hash, revealedLocation);
   }
 
   public getLocationOfPlanet(planetId: LocationId): WorldLocation | undefined {
-    return this.planetLocationMap.get(planetId) || undefined;
+    // First check the main location map
+    const location = this.planetLocationMap.get(planetId);
+    if (location) {
+      return location;
+    }
+
+    // For starbases, also check revealedLocations as a fallback
+    // (starbases might not be in planetLocationMap if they haven't been refreshed yet)
+    const planet = this.planets.get(planetId);
+    if (planet && planet.planetType === PlanetType.STARBASE) {
+      const revealedLoc = this.revealedLocations.get(planetId);
+      if (revealedLoc) {
+        return revealedLoc;
+      }
+    }
+
+    return undefined;
   }
 
   /**
@@ -1754,6 +1806,11 @@ export class GameObjects {
     return this.planetUtils.defaultPlanetFromLocation(location);
   }
 
+  /**
+   * Lazy update: only updates planet if it's stale (more than 1 tick behind).
+   * Works for all planet types including STARBASE.
+   * @param planet The planet to potentially update
+   */
   private updatePlanetIfStale(planet: Planet): void {
     const curTick = this.tickerUtils.getCurrentTick();
     if (curTick - planet.lastUpdated > 1) {

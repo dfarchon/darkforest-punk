@@ -11,12 +11,12 @@ import type {
 import { RendererType } from "@df/types";
 
 import { EngineUtils } from "../EngineUtils";
-import { STARRAY_PROGRAM_DEFINITION } from "../Programs/StarRayProgram";
+import { SUNRAY_PROGRAM_DEFINITION } from "../Programs/SunRayProgram";
 import type { GameGLManager } from "../WebGL/GameGLManager";
 import { GenericRenderer } from "../WebGL/GenericRenderer";
 
 export class SunRayRenderer
-  extends GenericRenderer<typeof STARRAY_PROGRAM_DEFINITION, GameGLManager>
+  extends GenericRenderer<typeof SUNRAY_PROGRAM_DEFINITION, GameGLManager>
   implements SunRayRendererType
 {
   quad3Buffer: number[];
@@ -26,7 +26,7 @@ export class SunRayRenderer
   rendererType = RendererType.SunRay;
 
   constructor(manager: GameGLManager) {
-    super(manager, STARRAY_PROGRAM_DEFINITION);
+    super(manager, SUNRAY_PROGRAM_DEFINITION);
     const { gl } = this.manager;
 
     this.quad3Buffer = EngineUtils.makeEmptyQuad();

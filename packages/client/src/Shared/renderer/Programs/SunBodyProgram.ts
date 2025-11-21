@@ -33,7 +33,7 @@ const v = {
   showBeach: "v_showBeach",
 };
 
-export const STARBODY_PROGRAM_DEFINITION = {
+export const SUNBODY_PROGRAM_DEFINITION = {
   uniforms: {
     matrix: { name: u.matrix, type: UniformType.Mat4 },
     timeMatrix: { name: u.timeMatrix, type: UniformType.Mat4 },
@@ -170,25 +170,25 @@ export const STARBODY_PROGRAM_DEFINITION = {
       return vec3(rho, theta, phi);
     }
 
-    // Star surface function - creates bright, glowing surface
-    float starSurfaceFn(vec3 coords) {
+    // Sun surface function - creates bright, glowing surface
+    float sunSurfaceFn(vec3 coords) {
       float distort = ${v.distort};
       vec4 rot = ${u.timeMatrix} * vec4(coords, 1.);
-      // Faster rotation for star
+      // Faster rotation for sun
       float n = snoise(vec4(rot.xyz * 2.0, ${u.time} * (2.0 - 6. * distort)));
       // More uniform, brighter surface
       return (1. - distort * 0.5) + distort * 0.5 * n;
     }
 
-    float starSurfaceAtSpherical(float rho, float theta, float phi) {
+    float sunSurfaceAtSpherical(float rho, float theta, float phi) {
       float x = rho * sin(phi) * cos(theta);
       float y = rho * sin(phi) * sin(theta);
       float z = rho * cos(phi);
-      return starSurfaceFn(vec3(x, y, z));
+      return sunSurfaceFn(vec3(x, y, z));
     }
 
-    // Star color - bright, glowing, radial gradient
-    vec4 getStarColor(vec3 tCoords, float offW) {
+    // Sun color - two-tone gradient (no white clouds)
+    vec4 getSunColor(vec3 tCoords, float offW) {
       float offX = seededRandom(${v.seed}) * 8376.0;
       float offY = seededRandom(${v.seed} * 2.0) * 8376.0;
       float offZ = seededRandom(${v.seed} * 3.0) * 8376.0;
@@ -202,26 +202,23 @@ export const STARBODY_PROGRAM_DEFINITION = {
         n += snoise(nIn * fac) * (1. / fac);
       }
 
-      // Star colors - bright core to outer glow
-      // Core: very bright white-yellow
-      vec3 coreColor = mix(${v.color}.rgb, vec3(1.0, 0.98, 0.85), 0.7) * 2.2;
-      // Mid: bright base color
-      vec3 midColor = ${v.color}.rgb * 1.6;
-      // Outer: glowing base color
-      vec3 outerColor = mix(${v.color}.rgb, ${v.color2}.rgb, 0.3) * 1.2;
+      // Two colors only: a brighter mix and a darker mix (no white highlight)
+      vec3 brightColor = mix(${v.color}.rgb, ${v.color2}.rgb, 0.25) * 1.8;
+      vec3 darkColor = mix(${v.color}.rgb, ${v.color2}.rgb, 0.65) * 1.0;
 
-      // Radial gradient based on noise
-      vec3 starColor = n > 0.3 ? coreColor : n > -0.1 ? midColor : outerColor;
+      // Smooth transition based on noise
+      float t = smoothstep(-0.2, 0.4, n);
+      vec3 sunColor = mix(darkColor, brightColor, t);
 
-      return vec4(starColor, 1.0);
+      return vec4(sunColor, 1.0);
     }
 
-    bool isStar(float r, float theta) {
-      float limit = starSurfaceAtSpherical(1., theta, PI / 2.);
+    bool isSun(float r, float theta) {
+      float limit = sunSurfaceAtSpherical(1., theta, PI / 2.);
       return r < limit;
     }
 
-    vec4 getStarBodyColor(float xPre, float yPre, float offW) {
+    vec4 getSunBodyColor(float xPre, float yPre, float offW) {
       /* do transformations */
       float xNorm = xPre * (1. / inR);
       float yNorm = yPre * (1. / inR);
@@ -237,26 +234,28 @@ export const STARBODY_PROGRAM_DEFINITION = {
       float phi = spherical.z;
       float r = length(vec2(xNorm, yNorm));
 
-      float morph = starSurfaceAtSpherical(rho, theta, phi);
+      float morph = sunSurfaceAtSpherical(rho, theta, phi);
 
-      // get star color
-      vec4 starColor = getStarColor(image.xyz * morph, offW);
+      // get sun color
+      vec4 sunColor = getSunColor(image.xyz * morph, offW);
 
       // check if it should be inside or not
-      bool isStar = isStar(r, theta);
+      bool insideSun = isSun(r, theta);
 
       // filter out the stuff that's not inside
-      vec4 bodyColor = isStar ? starColor : vec4(0.0);
+      vec4 bodyColor = insideSun ? sunColor : vec4(0.0);
 
       return bodyColor;
     }
 
-    // Corona/atmosphere effect for star with electromagnetic beam pulses
+    // Corona/atmosphere effect for sun with electromagnetic beam pulses
     vec4 getCoronaColor(float xPre, float yPre) {
       float r = length(vec2(xPre, yPre));
 
-      // Corona extends further beyond the main body (bigger range)
-      if (r > 1.3 || r < 0.7) return vec4(0.0);
+      // Smaller corona: keep it within the visible circle to avoid edges (≈70% outer size)
+      // Old: r < 0.7 || r > 1.3
+      // New: r in [0.7, 0.95]
+      if (r > 0.95 || r < 0.7) return vec4(0.0);
 
       // Calculate angle for radial deformation
       float theta = arcTan(yPre, xPre);
@@ -287,7 +286,7 @@ export const STARBODY_PROGRAM_DEFINITION = {
       float deformation = baseNoise * 0.4 + radialNoise * 0.4 + angularNoise * 0.2;
 
       // Apply deformation to radius - creates wavy, distorted ring
-      float deformedR = r + deformation * 0.15;
+      float deformedR = r + deformation * 0.10; // slightly reduced deformation for a thinner ring
 
       // Create electromagnetic beam pulses instead of cuts
       // Beam pulse detection - where beams should appear
@@ -316,7 +315,7 @@ export const STARBODY_PROGRAM_DEFINITION = {
 
       // Beam extends outward from ring edge, but stays within visible container
       float beamStartR = 0.8;
-      float beamEndR = 1.01; // Reduced to stay within max rendered circle (was 1.4)
+      float beamEndR = 0.97; // ensure beams stay within the unit circle
 
       // Flame-like beam shape - organic, wavy, flickering
       float angleFromBeam = mod(abs(theta - (beamAngle / 8.0)), PI);
@@ -373,7 +372,7 @@ export const STARBODY_PROGRAM_DEFINITION = {
       float beamAlpha = beamIntensity * beamShape * beamDistFade * 0.8;
 
       // Corona ring intensity
-      float coronaIntensity = 1.0 - smoothstep(0.7, 1.3, deformedR);
+      float coronaIntensity = 1.0 - smoothstep(0.7, 0.95, deformedR);
 
       // Where beams appear, reduce ring intensity (create "cut" effect)
       float ringCut = hasBeam ? (1.0 - beamShape * 0.6) : 1.0;
@@ -383,8 +382,8 @@ export const STARBODY_PROGRAM_DEFINITION = {
       float pulseNoise = snoise(vec4(rot.xyz * 3.0, ${u.time} * 1.5)) * 0.3 + 0.7;
       coronaIntensity *= pulseNoise;
 
-      // Bright corona glow
-      vec3 coronaColor = mix(${v.color}.rgb, vec3(1.0, 0.95, 0.8), 0.5) * 1.5;
+      // Bright corona glow (two-color palette, no white tint)
+      vec3 coronaColor = mix(${v.color}.rgb, ${v.color2}.rgb, 0.4) * 1.8;
 
       // Combine corona ring and beam
       vec4 coronaRing = vec4(coronaColor, coronaIntensity * 0.5);
@@ -461,25 +460,23 @@ export const STARBODY_PROGRAM_DEFINITION = {
       float yPre = ${v.rectPos}.y;
       float r = length(${v.rectPos});
 
-      // star body
-      vec4 starColor = getStarBodyColor(xPre, yPre, ${u.time} * ${v.morphSpeed} * 1.5);
+      // sun body
+      vec4 sunColor = getSunBodyColor(xPre, yPre, ${u.time} * ${v.morphSpeed} * 1.5);
 
-      // do antialiasing for star body only
+      // do antialiasing for sun body only
       float ratio = (inR - r) / ${v.eps};
       if (ratio < 1.) {
-        starColor.a *= ratio;
+        sunColor.a *= ratio;
       }
 
-      // Add corona/ring effect around sun
+      // Small corona/ring (≈70% of the previous size), kept inside unit circle
       vec4 coronaColor = getCoronaColor(xPre, yPre);
 
-      // Add electromagnetic pulses (extend beyond sun body)
-      vec4 pulseColor = getElectromagneticPulses(xPre, yPre);
+      // Blend small corona -> sun body and hard-clip outside unit circle
+      vec4 myColor = blend(coronaColor, sunColor);
+      if (r > 1.0) discard;
 
-      // Blend: pulses -> corona -> star body
-      vec4 myColor = blend(pulseColor, blend(coronaColor, starColor));
-
-      // Don't discard if pulses are visible (even if star body is not)
+      // Discard if fully transparent
       if (myColor.a < 0.01) discard;
 
       myColor.a *= ${v.alpha};

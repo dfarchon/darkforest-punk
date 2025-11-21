@@ -201,6 +201,7 @@ export const RendererType = {
   Sun: 29 as RendererType,
   SunBody: 30 as RendererType,
   SunRay: 31 as RendererType,
+  Starbase: 32 as RendererType,
   CaptureZone: 25 as RendererType,
   PinkZone: 26 as RendererType,
   BlueZone: 27 as RendererType,
@@ -298,6 +299,25 @@ export interface SunRendererType {
 
   /**
    * Draws all queued Suns.
+   */
+  flush(): void;
+}
+
+export interface StarbaseRendererType {
+  rendererType: RendererType;
+
+  /**
+   * The game calls the queue function when the entities should be put into a back buffer queue.
+   * The back buffer is used to contain information on the entities being drawn for later use in the flush function.
+   * The implementing renderer should contains its own back buffer.
+   * @param planet - an object that contains info about the current Starbase planet
+   * @param centerW - represents the coordinates of the current Starbase relative to the game world.
+   * @param radiusW - represents the radius of the Starbase relative to the size of the game world.
+   */
+  queueStarbase(planet: Planet, centerW: WorldCoords, radiusW: number): void;
+
+  /**
+   * Draws all queued Starbases.
    */
   flush(): void;
 }

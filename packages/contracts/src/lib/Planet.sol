@@ -178,6 +178,10 @@ library PlanetLib {
     planet.materialStorage.WriteToStore(planet.planetHash);
   }
 
+  /// @notice Updates planet resources (population, silver, materials) to the given tick.
+  /// @dev Works for all planet types including STARBASE. Lazy update: only calculates growth when needed.
+  /// @param planet The planet to update
+  /// @param untilTick The tick number to update to
   function naturalGrowth(Planet memory planet, uint256 untilTick) internal view {
     if (planet.lastUpdateTick >= untilTick) {
       return;
@@ -478,6 +482,11 @@ library PlanetLib {
       cumulativeThreshold += thresholds[i];
       if (value < cumulativeThreshold) {
         planet.planetType = PlanetType(i + 1);
+        // Ensure STARBASE (PlanetType.STARBASE = 7) is never generated procedurally
+        // STARBASE can only be created via StarbaseSystem.createStarBase
+        if (planet.planetType == PlanetType.STARBASE) {
+          revert Errors.UnknownPlanetType();
+        }
         return;
       }
       unchecked {
@@ -788,25 +797,67 @@ library PlanetLib {
     if (planet.owner != executor) {
       revert Errors.NotPlanetOwner();
     }
-    if (planet.planetType != PlanetType.PLANET || planet.level == 0) {
+    // Allow upgrades for PLANET, STARBASE, and ASTEROID_FIELD
+    if (
+      (planet.planetType != PlanetType.PLANET &&
+        planet.planetType != PlanetType.STARBASE &&
+        planet.planetType != PlanetType.ASTEROID_FIELD) || planet.level == 0
+    ) {
       revert Errors.InvalidUpgradeTarget();
     }
 
+    // Calculate final upgrade levels
     uint256 rangeLvl = planet.rangeUpgrades + rangeUpgrades;
     uint256 speedLvl = planet.speedUpgrades + speedUpgrades;
     uint256 defenseLvl = planet.defenseUpgrades + defenseUpgrades;
+    uint256 totalLvl = rangeLvl + speedLvl + defenseLvl;
 
+    // Get upgrade config limits
     UpgradeConfigData memory config = UpgradeConfig.get();
     uint256 maxSingleLevel = config.maxSingleLevel;
+    // Extract maxTotalLevel for this space type (packed: DEAD_SPACE | DEEP_SPACE | SPACE | NEBULA)
+    // SpaceType enum: UNKNOWN=0, NEBULA=1, SPACE=2, DEEP_SPACE=3, DEAD_SPACE=4
     uint256 maxTotalLevel = uint8(config.maxTotalLevel >> ((uint8(planet.spaceType) - 1) * 8));
 
-    if (
-      rangeLvl + speedLvl + defenseLvl > maxTotalLevel ||
-      rangeLvl > maxSingleLevel ||
-      speedLvl > maxSingleLevel ||
-      defenseLvl > maxSingleLevel
-    ) {
+    // Validate space type upgrade limits (applies to all planet types)
+    if (totalLvl > maxTotalLevel) {
       revert Errors.UpgradeExceedMaxLevel();
+    }
+    if (rangeLvl > maxSingleLevel || speedLvl > maxSingleLevel || defenseLvl > maxSingleLevel) {
+      revert Errors.UpgradeExceedMaxLevel();
+    }
+
+    // Separate upgrade logic for PLANET/STARBASE vs ASTEROID_FIELD
+    if (planet.planetType == PlanetType.PLANET || planet.planetType == PlanetType.STARBASE) {
+      // PLANET and STARBASE: original upgrade system (all branches can be upgraded freely)
+      // No additional branch restrictions - all three branches can be upgraded independently
+      // Space type limits (maxTotalLevel) are already checked above
+    } else if (planet.planetType == PlanetType.ASTEROID_FIELD) {
+      // ASTEROID_FIELD: restricted upgrade system - only one upgrade total allowed
+
+      // Count current total upgrades (before this transaction)
+      uint256 currentTotalUpgrades = planet.rangeUpgrades + planet.speedUpgrades + planet.defenseUpgrades;
+
+      // ASTEROID_FIELD can only be upgraded once total
+      // If it has already been upgraded, no more upgrades allowed
+      if (currentTotalUpgrades > 0) {
+        revert Errors.InvalidUpgradeTarget();
+      }
+
+      // Validate: can only upgrade one branch at a time
+      uint256 branchesBeingUpgraded = 0;
+      if (rangeUpgrades > 0) branchesBeingUpgraded++;
+      if (speedUpgrades > 0) branchesBeingUpgraded++;
+      if (defenseUpgrades > 0) branchesBeingUpgraded++;
+
+      if (branchesBeingUpgraded != 1) {
+        revert Errors.InvalidUpgradeTarget();
+      }
+
+      // Validate: can only upgrade by 1 level at a time
+      if (rangeUpgrades > 1 || speedUpgrades > 1 || defenseUpgrades > 1) {
+        revert Errors.InvalidUpgradeTarget();
+      }
     }
   }
 

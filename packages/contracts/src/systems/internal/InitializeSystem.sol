@@ -71,6 +71,7 @@ contract InitializeSystem is BaseSystem {
   ) internal {
     uint256 defense = metadata.defense;
     uint32 originalSilverGrowth = metadata.silverGrowth; // Save original silverGrowth before modifications
+    uint32 originalPopulationGrowth = metadata.populationGrowth; // Save original populationGrowth before modifications
     metadata.defense /= 2;
     metadata.silverCap *= 2;
     PlanetMetadata.set(spaceType, PlanetType.ASTEROID_FIELD, level, metadata);
@@ -104,5 +105,23 @@ contract InitializeSystem is BaseSystem {
     metadata.silverGrowth = originalSilverGrowth; // Restore original silverGrowth for SOLAR_ENERGY growth
     PlanetMetadata.set(spaceType, PlanetType.SUN, level, metadata);
     PlanetInitialResource.set(spaceType, PlanetType.SUN, level, PlanetInitialResourceData(population / 2, 5000 * 1000));
+
+    // STARBASE: Player-crafted starbase with balanced stats (similar to PLANET but slightly enhanced)
+    // Starbases should only have population growth, no silver growth
+    // Reset metadata back to PLANET-like values first (undo QUASAR/SUN modifications)
+    metadata.defense = uint16(defense);
+    metadata.silverCap /= 2; // Reset from QUASAR's silverCap (which was * 10), so now it's back to original / 2
+    metadata.silverGrowth = 0; // Starbases don't generate silver, only population grows
+    metadata.speed /= 2; // Reset from QUASAR's speed (which was * 2)
+    metadata.populationCap /= 10; // half of QUASAR's populationCap
+    metadata.populationGrowth = originalPopulationGrowth / 2; // Restore populationGrowth (QUASAR set it to 0)
+    // Restore population to PLANET value (QUASAR multiplied it by 5)
+    population = uint64((metadata.populationCap * initialPopulationPercentage) / 200);
+    // Now apply starbase-specific boosts
+    metadata.speed = (metadata.speed * 11) / 10; // 10% speed boost
+    metadata.range = (metadata.range * 11) / 10; // 10% range boost
+    metadata.defense = uint16((defense * 12) / 10); // 20% defense boost
+    PlanetMetadata.set(spaceType, PlanetType.STARBASE, level, metadata);
+    PlanetInitialResource.set(spaceType, PlanetType.STARBASE, level, PlanetInitialResourceData(population, 0));
   }
 }

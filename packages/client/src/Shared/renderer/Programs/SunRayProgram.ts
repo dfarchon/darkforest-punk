@@ -19,7 +19,7 @@ const v = {
   rectPos: "v_rectPos",
 };
 
-export const STARRAY_PROGRAM_DEFINITION = {
+export const SUNRAY_PROGRAM_DEFINITION = {
   uniforms: {
     matrix: { name: u.matrix, type: UniformType.Mat4 },
     time: { name: u.time, type: UniformType.Float },

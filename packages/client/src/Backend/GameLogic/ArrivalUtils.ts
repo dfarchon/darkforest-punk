@@ -193,6 +193,16 @@ const getPopulationAtTick = (planet: Planet, atTick: number): number => {
   return planet.populationCap / denominator;
 };
 
+/**
+ * Lazy update: updates planet resources (population, silver, materials) to the given tick.
+ * Works for all planet types including STARBASE. This is called only when the planet is accessed
+ * and is stale, implementing the lazy update pattern.
+ * @param planet The planet to update
+ * @param _planetArtifacts Artifacts on the planet (unused but kept for compatibility)
+ * @param atTick The tick number to update to
+ * @param _contractConstants Contract constants (unused but kept for compatibility)
+ * @param setPlanet Callback to save the updated planet
+ */
 export const updatePlanetToTick = (
   planet: Planet,
   _planetArtifacts: Artifact[],

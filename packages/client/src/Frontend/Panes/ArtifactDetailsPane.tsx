@@ -8,19 +8,26 @@ import {
   isSpaceShip,
 } from "@df/gamelogic";
 import { artifactName, getPlanetName, getPlanetNameHash } from "@df/procedural";
-import { isUnconfirmedWithdrawArtifactTx } from "@df/serde";
+import {
+  isUnconfirmedActivateArtifactTx,
+  isUnconfirmedShutdownArtifactTx,
+  isUnconfirmedWithdrawArtifactTx,
+} from "@df/serde";
 import type {
   Artifact,
   ArtifactId,
   EthAddress,
   LocationId,
+  Planet,
   Upgrade,
 } from "@df/types";
 import {
+  ArtifactGenre,
   ArtifactRarityNames,
   ArtifactStatus,
   ArtifactStatusNames,
   ArtifactType,
+  PlanetFlagType,
   PlanetType,
   TooltipName,
 } from "@df/types";
@@ -56,6 +63,7 @@ import {
   usePlanet,
   useUIManager,
 } from "../Utils/AppHooks";
+import type { GameUIManager } from "../../Backend/GameLogic/GameUIManager";
 import type { ModalHandle } from "../Views/ModalPane";
 import { ArtifactActions } from "./ManagePlanetArtifacts/ArtifactActions";
 import { ArtifactChangeImageType } from "./ManagePlanetArtifacts/ArtifactChangeImageType";
@@ -381,6 +389,12 @@ export function ArtifactDetailsBody({
               Manage Modules
             </Btn>
           )}
+          <Spacer height={8} />
+          <SpaceshipDefenseAction
+            artifact={artifact}
+            onPlanet={onPlanet}
+            uiManager={uiManager}
+          />
         </>
       )}
 
@@ -558,6 +572,154 @@ export function ArtifactDetailsPane({
       contractConstants={contractConstants}
       depositOn={depositOn}
     />
+  );
+}
+
+function SpaceshipDefenseAction({
+  artifact,
+  onPlanet,
+  uiManager,
+}: {
+  artifact: Artifact;
+  onPlanet?: Planet;
+  uiManager: GameUIManager | undefined;
+}) {
+  if (!uiManager) {
+    return null;
+  }
+
+  if (!onPlanet) {
+    return (
+      <Sub>Spaceship must be stationed on a planet to manage defense mode.</Sub>
+    );
+  }
+
+  const metadataReady =
+    artifact.genre !== undefined &&
+    artifact.reqLevel !== undefined &&
+    artifact.reqPopulation !== undefined &&
+    artifact.reqSilver !== undefined &&
+    artifact.status !== undefined &&
+    artifact.charge !== undefined &&
+    artifact.cooldown !== undefined &&
+    artifact.durable !== undefined &&
+    artifact.reusable !== undefined &&
+    onPlanet.flags !== undefined;
+
+  if (!metadataReady) {
+    return <Sub>Loading defense controls...</Sub>;
+  }
+
+  const activating = artifact.transactions?.hasTransaction(
+    isUnconfirmedActivateArtifactTx,
+  );
+  const shuttingDown = artifact.transactions?.hasTransaction(
+    isUnconfirmedShutdownArtifactTx,
+  );
+
+  const defenseActive = artifact.status === ArtifactStatus.Active;
+
+  const flagClear = (flag: PlanetFlagType) =>
+    (onPlanet.flags! & (1n << BigInt(flag))) === 0n;
+
+  // Spaceship artifacts (artifactIndex 3) can always activate defense regardless of other artifacts
+  const isSpaceshipArtifact =
+    artifact.artifactType === ArtifactType.Spaceship ||
+    (artifact.artifactType as number) === 3;
+
+  const genreAvailable =
+    isSpaceshipArtifact ||
+    artifact.genre === ArtifactGenre.General ||
+    (artifact.genre === ArtifactGenre.Defensive &&
+      flagClear(PlanetFlagType.DEFENSIVE_ARTIFACT)) ||
+    (artifact.genre === ArtifactGenre.Offensive &&
+      flagClear(PlanetFlagType.OFFENSIVE_ARTIFACT)) ||
+    (artifact.genre === ArtifactGenre.Productive &&
+      flagClear(PlanetFlagType.PRODUCTIVE_ARTIFACT));
+
+  const populationCheck = onPlanet.population > (artifact.reqPopulation ?? 0n);
+  const silverCheck = onPlanet.silver >= (artifact.reqSilver ?? 0n);
+  const reqLevel = artifact.reqLevel ?? 0;
+  const levelCheck = onPlanet.planetLevel <= reqLevel;
+
+  // Check if cooldown has passed since last shutdown
+  const currentTick = uiManager.getCurrentTick();
+  const cooldownTick = artifact.cooldownTick ?? 0;
+  const cooldown = artifact.cooldown ?? 0;
+  const cooldownPassed =
+    cooldown === 0 ||
+    cooldownTick === 0 ||
+    currentTick >= cooldownTick + cooldown;
+
+  const canActivateDefense =
+    !defenseActive &&
+    genreAvailable &&
+    populationCheck &&
+    silverCheck &&
+    levelCheck &&
+    cooldownPassed;
+  const artifactStatus = artifact.status ?? ArtifactStatus.Default;
+  const canShutdownDefense =
+    defenseActive &&
+    artifactStatus >= ArtifactStatus.Charging &&
+    artifactStatus <= ArtifactStatus.Active;
+
+  const disableReason = (() => {
+    if (defenseActive || canActivateDefense) {
+      return undefined;
+    }
+    if (!cooldownPassed && cooldown > 0 && cooldownTick > 0) {
+      const blocksRemaining = cooldownTick + cooldown - currentTick;
+      const timeRemainingMs =
+        (blocksRemaining / uiManager.getCurrentTickerRate()) * 1000;
+      return `On cooldown. Available in ${formatDuration(timeRemainingMs)}.`;
+    }
+    if (!genreAvailable) {
+      return "Another defensive artifact is already active on this planet.";
+    }
+    if (!populationCheck) {
+      return "Not enough energy on the planet.";
+    }
+    if (!silverCheck) {
+      return "Not enough silver on the planet.";
+    }
+    if (!levelCheck) {
+      return "Planet level requirement not met.";
+    }
+    return undefined;
+  })();
+
+  const isPending = defenseActive ? shuttingDown : activating;
+  const disabled =
+    (defenseActive ? !canShutdownDefense : !canActivateDefense) || isPending;
+
+  return (
+    <>
+      <Btn
+        disabled={disabled}
+        onClick={() => {
+          if (defenseActive) {
+            uiManager.shutdownArtifact(onPlanet.locationId, artifact.id);
+          } else {
+            uiManager.activateArtifact(onPlanet.locationId, artifact.id);
+          }
+        }}
+      >
+        {(() => {
+          if (isPending) {
+            return (
+              <LoadingSpinner
+                initialText={
+                  defenseActive ? "Deactivating..." : "Activating..."
+                }
+              />
+            );
+          }
+          return defenseActive ? "Deactivate Defense" : "Activate Defense";
+        })()}
+      </Btn>
+      {!defenseActive && disableReason && <Sub>{disableReason}</Sub>}
+    </>
   );
 }
 

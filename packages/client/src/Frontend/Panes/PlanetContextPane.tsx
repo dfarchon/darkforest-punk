@@ -139,7 +139,9 @@ function PlanetContextPaneContent({
     !p?.destroyed &&
     !p?.frozen &&
     owned &&
-    p?.planetType === PlanetType.PLANET
+    (p?.planetType === PlanetType.PLANET ||
+      p?.planetType === PlanetType.STARBASE ||
+      p?.planetType === PlanetType.SILVER_MINE)
   ) {
     upgradeRow = (
       <OpenUpgradeDetailsPaneButton

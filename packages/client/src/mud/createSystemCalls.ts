@@ -15,7 +15,7 @@ export type SystemCalls = ReturnType<typeof createSystemCalls>;
 
 // PlanetType Enum
 // Note: This enum matches contract enum values (excluding UNKNOWN=0)
-// Contract: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6
+// Contract: UNKNOWN=0, PLANET=1, ASTEROID_FIELD=2, FOUNDRY=3, SPACETIME_RIP=4, QUASAR=5, SUN=6, STARBASE=7
 export enum PlanetType {
   PLANET = 1,
   ASTEROID_FIELD = 2,
@@ -23,6 +23,7 @@ export enum PlanetType {
   SPACETIME_RIP = 4,
   QUASAR = 5,
   SUN = 6,
+  STARBASE = 7,
 }
 
 // SpaceType Enum

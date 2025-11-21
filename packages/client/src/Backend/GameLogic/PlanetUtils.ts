@@ -227,7 +227,15 @@ export class PlanetUtils {
         upgradeState[0] = planetData.upgrades & 0x0000ff; // defense
         useProps = planetData.useProps;
       } else {
-        throw new Error("planet data not found");
+        // For starbases, Planet data might not exist yet, but we should still use the constants
+        if (planetType === PlanetType.STARBASE) {
+          // Initialize with default values for starbase
+          population = 0;
+          silver = 0;
+          lastUpdateTick = 0;
+        } else {
+          throw new Error("planet data not found");
+        }
       }
     } else {
       universeZone = this._initZone(distSquare);
@@ -450,7 +458,27 @@ export class PlanetUtils {
   }
 
   public _validateHash(locationId: LocationId): boolean {
-    return validLocationHash(locationId);
+    // First, try to validate using standard validation
+    // If it passes, it's a regular planet
+    if (validLocationHash(locationId)) {
+      return true;
+    }
+
+    // If standard validation fails, check if it's a starbase
+    // Starbases can have hashes that exceed LOCATION_ID_UB
+    const { PlanetConstants } = this.components;
+    const planetEntity = encodeEntity(PlanetConstants.metadata.keySchema, {
+      id: locationIdToHexStr(locationId) as `0x${string}`,
+    });
+    const planetConstants = getComponentValue(PlanetConstants, planetEntity);
+
+    // If it exists in PlanetConstants and is a starbase, it's valid
+    if (planetConstants && planetConstants.planetType === PlanetType.STARBASE) {
+      return true;
+    }
+
+    // Otherwise, it's invalid
+    return false;
   }
 
   // public _initPlanet(planet: Planet): Planet {

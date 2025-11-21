@@ -221,12 +221,37 @@ export class InitialGameStateDownloader {
     //   kardashevCoordsMap.set(kardashevCoords.hash, kardashevCoords);
     // }
 
+    // Include starbases from chunks and revealed coords that are not in allTouchedPlanetIds
+    // (starbases are excluded from getTouchedPlanetIds because their hashes may exceed LOCATION_ID_UB)
+    const starbaseIds = new Set<LocationId>();
+    for (const chunk of minedChunks) {
+      for (const planetLocation of chunk.planetLocations) {
+        // Check if this is a starbase by checking if it's in revealed coords but not in touched planets
+        if (
+          revealedCoordsMap.has(planetLocation.hash) &&
+          !allTouchedPlanetIds.includes(planetLocation.hash)
+        ) {
+          // This might be a starbase - add it to planets to load
+          starbaseIds.add(planetLocation.hash);
+        }
+      }
+    }
+    // Also check revealed coords that aren't in touched planets (these might be starbases)
+    for (const [locationId] of revealedCoordsMap) {
+      if (!allTouchedPlanetIds.includes(locationId)) {
+        starbaseIds.add(locationId);
+      }
+    }
+
     let planetsToLoad = allTouchedPlanetIds.filter(
       (id) => minedPlanetIds.has(id) || revealedCoordsMap.has(id), //||
       // claimedCoordsMap.has(id) ||
       // burnedCoordsMap.has(id) ||
       // kardashevCoordsMap.has(id),
     );
+
+    // Add starbases to planets to load
+    planetsToLoad = [...planetsToLoad, ...Array.from(starbaseIds)];
 
     const pendingMoves = contractsAPI.getAllArrivals(
       planetsToLoad,
@@ -239,9 +264,22 @@ export class InitialGameStateDownloader {
       planetsToLoad.push(arrival.fromPlanet);
     }
 
-    planetsToLoad = [...new Set(planetsToLoad)].map((id) =>
-      locationIdFromHexStr(id),
-    );
+    // Filter out starbases and convert valid planet IDs
+    // Starbases can have hashes that exceed LOCATION_ID_UB, so locationIdFromHexStr will fail
+    const validPlanetIds: LocationId[] = [];
+    for (const id of [...new Set(planetsToLoad)]) {
+      try {
+        const planetId = locationIdFromHexStr(id);
+        validPlanetIds.push(planetId);
+      } catch (error) {
+        // If conversion fails, it might be a starbase or invalid planet
+        // Skip it - starbases are handled separately and don't need to be in bulkGetPlanets
+        console.warn(
+          `Skipping planet ${id} in InitialGameStateDownloader: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    planetsToLoad = validPlanetIds;
 
     const touchedAndLocatedPlanets = contractsAPI.bulkGetPlanets(
       planetsToLoad,

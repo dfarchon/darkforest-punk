@@ -16,6 +16,8 @@ import FoundryCraftingSystemAbi from "contracts/out/FoundryCraftingSystem.sol/Fo
 import ModuleCraftingSystemAbi from "contracts/out/ModuleCraftingSystem.sol/ModuleCraftingSystem.abi.json";
 import FoundryUpgradeSystemAbi from "contracts/out/FoundryUpgradeSystem.sol/FoundryUpgradeSystem.abi.json";
 import SpaceshipModuleSystemAbi from "contracts/out/SpaceshipModuleSystem.sol/SpaceshipModuleSystem.abi.json";
+import StarbaseSystemAbi from "contracts/out/StarbaseSystem.sol/StarbaseSystem.abi.json";
+import StarbaseModuleSystemAbi from "contracts/out/StarbaseModuleSystem.sol/StarbaseModuleSystem.abi.json";
 import PlayerSystemAbi from "contracts/out/PlayerSystem.sol/PlayerSystem.abi.json";
 import TestOnlySystemAbi from "contracts/out/TestOnlySystem.sol/TestOnlySystem.abi.json";
 import TickSystemAbi from "contracts/out/TickSystem.sol/TickSystem.abi.json";
@@ -179,6 +181,22 @@ export const FOUNDRY_UPGRADE_SYSTEM_ID = resourceToHex({
 
 export const FOUNDRY_UPGRADE_SYSTEM_ABI: Abi = FoundryUpgradeSystemAbi;
 
+export const STARBASE_SYSTEM_ID = resourceToHex({
+  type: "system",
+  namespace: "df",
+  name: "StarbaseSystem",
+});
+
+export const STARBASE_SYSTEM_ABI: Abi = StarbaseSystemAbi;
+
+export const STARBASE_MODULE_SYSTEM_ID = resourceToHex({
+  type: "system",
+  namespace: "df",
+  name: "StarbaseModuleSystem",
+});
+
+export const STARBASE_MODULE_SYSTEM_ABI: Abi = StarbaseModuleSystemAbi;
+
 export const get_ABI_from_FunctionName = (functionName: string) => {
   if (functionName === "move" || functionName === "legacyMove") {
     return MOVE_SYSTEM_ABI;
@@ -221,10 +239,22 @@ export const get_ABI_from_FunctionName = (functionName: string) => {
   ) {
     return SPACESHIP_MODULE_SYSTEM_ABI;
   } else if (
+    functionName === "installStarbaseModule" ||
+    functionName === "df__installStarbaseModule" ||
+    functionName === "uninstallStarbaseModule" ||
+    functionName === "df__uninstallStarbaseModule"
+  ) {
+    return STARBASE_MODULE_SYSTEM_ABI;
+  } else if (
     functionName === "upgradeFoundry" ||
     functionName === "df__upgradeFoundry"
   ) {
     return FOUNDRY_UPGRADE_SYSTEM_ABI;
+  } else if (
+    functionName === "createStarBase" ||
+    functionName === "df__createStarBase"
+  ) {
+    return STARBASE_SYSTEM_ABI;
   } else if (functionName === "setPlanetEmoji") {
     return PLANET_EMOJI_SYSTEM_ABI;
   } else if (functionName === "initializePlayer") {
@@ -335,10 +365,25 @@ export const get_SystemId_from_FunctionName = (functionName: string) => {
   ) {
     return SPACESHIP_MODULE_SYSTEM_ID;
   } else if (
+    functionName === "installStarbaseModule" ||
+    functionName === "df__installStarbaseModule"
+  ) {
+    return STARBASE_MODULE_SYSTEM_ID;
+  } else if (
+    functionName === "uninstallStarbaseModule" ||
+    functionName === "df__uninstallStarbaseModule"
+  ) {
+    return STARBASE_MODULE_SYSTEM_ID;
+  } else if (
     functionName === "upgradeFoundry" ||
     functionName === "df__upgradeFoundry"
   ) {
     return FOUNDRY_UPGRADE_SYSTEM_ID;
+  } else if (
+    functionName === "createStarBase" ||
+    functionName === "df__createStarBase"
+  ) {
+    return STARBASE_SYSTEM_ID;
   } else if (functionName === "initializePlayer") {
     return PLAYER_SYSTEM_ID;
   } else if (
