@@ -108,9 +108,9 @@ contract MoveSystem is BaseSystem {
     MoveData memory shipping = MoveLib.NewMove(fromPlanet, _msgSender());
 
     uint256 d = UniverseLib.distance(fromPlanet, toPlanet, distanceParam);
-    (shipping, fromPlanet) = shipping.loadArtifact(fromPlanet, artifactId);
     (shipping, fromPlanet) = shipping.loadPopulation(fromPlanet, pop, d);
     (shipping, fromPlanet) = shipping.loadSilver(fromPlanet, silv);
+    (shipping, fromPlanet) = shipping.loadArtifact(fromPlanet, artifactId);
     (shipping, fromPlanet) = shipping.loadMaterials(fromPlanet, mats);
     (shipping, toPlanet) = shipping.headTo(toPlanet, d, fromPlanet.speed);
 
@@ -148,11 +148,18 @@ contract MoveSystem is BaseSystem {
    * @notice Reverts a movement if the caller is the captain and the move is within the first half of its journey
    * @param moveId The ID of the move to revert
    * @param toPlanetHash The destination planet hash of the move
-   * @param moveIndex The index of the move in the destination planet's queue
    */
-  function revertMove(uint64 moveId, bytes32 toPlanetHash, uint8 moveIndex) public entryFee {
+  function revertMove(uint64 moveId, bytes32 toPlanetHash) public entryFee {
     address w = _world();
     DFUtils.tick(w);
+
+    // Find the move index in the queue
+    PendingMoveQueue memory queue;
+    queue.ReadFromStore(uint256(toPlanetHash));
+    uint8 moveIndex = PendingMoveQueueLib.FindMoveIndex(queue, moveId);
+    if (moveIndex == type(uint8).max) {
+      revert Errors.MoveNotFound();
+    }
 
     // Get the move data
     MoveData memory moveData = Move.get(toPlanetHash, moveIndex);
@@ -186,9 +193,7 @@ contract MoveSystem is BaseSystem {
     }
 
     // Remove original move from destination planet's queue
-    PendingMoveQueue memory queue;
-    queue.ReadFromStore(uint256(toPlanetHash));
-    PendingMoveQueueLib.RemoveMove(queue, moveIndex);
+    PendingMoveQueueLib.RemoveMove(queue, moveId);
     queue.WriteToStore();
 
     // Create new move with reduced variables
@@ -239,7 +244,7 @@ contract MoveSystem is BaseSystem {
         from: toPlanetHash,
         id: moveData.id,
         captain: moveData.captain,
-        departureTick: uint64(currentTick),
+        departureTick: uint64(2 * currentTick - moveData.arrivalTick),
         arrivalTick: uint64(currentTick + elapsedTime),
         population: uint64(moveData.population / 2),
         silver: uint64(moveData.silver / 2),

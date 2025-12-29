@@ -49,7 +49,6 @@ interface Errors {
   error NotEnoughSilverToUpgrade(); // 0x3c1137b2
   error PlanetNotAvailable(); // 0xa7d5125d
   error PlanetNotInitialized(); // 0xcfd4ee18
-  error PlanetLevelTooLow(); // 0x504f5026
 
   // reveal system
   error InvalidRevealProof(); // 0x5d655004
@@ -75,12 +74,7 @@ interface Errors {
   error ArtifactOutOfControl(); // 0xf90edd80
   error ArtifactRarityTooHigh(); // 0xaefde1a6
   error ArtifactWithdrawalDisabled(); // 0xed2ec822
-  error FoundryCraftingLimitReached(); // 0x8396eb65
-  error InvalidSpaceshipType(); // 0x51f065d2
-  error InvalidMaterialAmount(); // 0xea7eae74
-  error InvalidMaterialType(); // 0x69593a26
-  error MissingRequiredMaterials(); // 0xe5774581
-  error NotEnoughMaterial1(); // 0x53841e48
+
   // planet withdraw silver system
   error InvalidPlanetType(); // 0xcfb7f825
   error InsufficientSilverOnPlanet(); // 0xfe845fce
