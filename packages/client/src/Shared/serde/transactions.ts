@@ -16,10 +16,14 @@ import type {
   UnconfirmedBuySpaceship,
   UnconfirmedCapturePlanet,
   UnconfirmedChangeArtifactImageType,
+  UnconfirmedChangeHomePlanet,
   UnconfirmedChargeArtifact,
   UnconfirmedCraftSpaceship,
   UnconfirmedCraftModule,
   UnconfirmedCreateStarBase,
+  UnconfirmedSetHomePlanet,
+  UnconfirmedStakeTokens,
+  UnconfirmedUnstakePlanet,
   UnconfirmedUpgradeFoundry,
   UnconfirmedInstallModule,
   UnconfirmedInstallStarbaseModule,
@@ -222,6 +226,54 @@ export function isUnconfirmedCreateStarBaseTx(
   tx: Transaction,
 ): tx is Transaction<UnconfirmedCreateStarBase> {
   return isUnconfirmedCreateStarBase(tx.intent);
+}
+
+export function isUnconfirmedChangeHomePlanet(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedChangeHomePlanet {
+  return txIntent.methodName === "df__changeHomePlanet";
+}
+
+export function isUnconfirmedChangeHomePlanetTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedChangeHomePlanet> {
+  return isUnconfirmedChangeHomePlanet(tx.intent);
+}
+
+export function isUnconfirmedSetHomePlanet(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedSetHomePlanet {
+  return txIntent.methodName === "df__setHomePlanet";
+}
+
+export function isUnconfirmedSetHomePlanetTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedSetHomePlanet> {
+  return isUnconfirmedSetHomePlanet(tx.intent);
+}
+
+export function isUnconfirmedStakeTokens(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedStakeTokens {
+  return txIntent.methodName === "df__stakeTokens";
+}
+
+export function isUnconfirmedStakeTokensTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedStakeTokens> {
+  return isUnconfirmedStakeTokens(tx.intent);
+}
+
+export function isUnconfirmedUnstakePlanet(
+  txIntent: TxIntent,
+): txIntent is UnconfirmedUnstakePlanet {
+  return txIntent.methodName === "df__unstakePlanet";
+}
+
+export function isUnconfirmedUnstakePlanetTx(
+  tx: Transaction,
+): tx is Transaction<UnconfirmedUnstakePlanet> {
+  return isUnconfirmedUnstakePlanet(tx.intent);
 }
 
 export function isUnconfirmedInstallModule(

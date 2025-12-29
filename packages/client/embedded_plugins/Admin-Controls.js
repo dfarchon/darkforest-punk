@@ -129,6 +129,52 @@ async function updateTickRate(tickRate) {
   return tx;
 }
 
+async function mintPlanetToken(recipient, amount, planetLevel) {
+  if (!recipient) {
+    alert("no recipient address");
+    return;
+  }
+
+  if (!amount || amount <= 0) {
+    alert("amount must be greater than 0");
+    return;
+  }
+
+  if (!planetLevel || planetLevel < 1 || planetLevel > 9) {
+    alert("planet level must be between 1 and 9");
+    return;
+  }
+
+  try {
+    // Convert amount to wei (assuming 18 decimals)
+    const amountWei = BigInt(Math.floor(amount * 1e18)).toString();
+
+    const account = df.getAccount();
+    const player = df.getPlayer(account);
+
+    // Use df.submitTransaction with erc20Mint system call
+    // The system will get PlanetToken address from MUD table automatically
+    const args = Promise.resolve([recipient, amountWei, planetLevel]);
+
+    const tx = await df.submitTransaction({
+      delegator: player.address,
+      args,
+      contract: df.getContract(),
+      methodName: "df__erc20Mint",
+    });
+
+    await tx.confirmedPromise;
+    alert(
+      `Successfully minted ${amount} PlanetToken(s) with level ${planetLevel} to ${recipient}`,
+    );
+    return tx;
+  } catch (error) {
+    console.error("Failed to mint PlanetToken:", error);
+    alert(`Failed to mint PlanetToken: ${error.message}`);
+    throw error;
+  }
+}
+
 async function createPlanet(coords, level, type) {
   coords.x = Math.round(coords.x);
   coords.y = Math.round(coords.y);
@@ -603,6 +649,72 @@ function ChangeTickRate() {
   `;
 }
 
+function GivePlanetToken() {
+  const [targetAccount, setTargetAccount] = useState(null);
+  const [amount, setAmount] = useState("1");
+  const [planetLevel, setPlanetLevel] = useState("4");
+  const [allPlayers, setAllPlayers] = useState([]);
+
+  useEffect(() => {
+    const refreshPlayers = () => {
+      setAllPlayers(df.getAllPlayers());
+    };
+    const sub = df.playersUpdated$.subscribe(refreshPlayers);
+    refreshPlayers();
+    return () => sub.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const account = df.getAccount();
+    setTargetAccount(account);
+  }, []);
+
+  return html`
+    <div style=${wrapperStyle}>
+      <${Heading} title="Give PlanetToken" />
+      <div style=${rowStyle}>
+        <span>Amount:</span>
+        <input
+          type="number"
+          min="0.1"
+          step="0.1"
+          value=${amount}
+          onChange=${(e) => setAmount(e.target.value)}
+          style=${{ width: "80px", marginLeft: "8px" }}
+        />
+        <span style=${{ marginLeft: "8px" }}>Level:</span>
+        <input
+          type="number"
+          min="1"
+          max="9"
+          value=${planetLevel}
+          onChange=${(e) => setPlanetLevel(e.target.value)}
+          style=${{ width: "60px", marginLeft: "8px" }}
+        />
+      </div>
+      <div style=${rowStyle}>
+        <span>To:</span>
+        <${Select}
+          style=${{ flex: "1" }}
+          value=${targetAccount}
+          onChange=${(e) => setTargetAccount(e.target.value)}
+          items=${accountOptions(allPlayers)}
+        />
+        <df-button
+          onClick=${() =>
+            mintPlanetToken(
+              targetAccount,
+              parseFloat(amount),
+              parseInt(planetLevel),
+            )}
+        >
+          Give Token
+        </df-button>
+      </div>
+    </div>
+  `;
+}
+
 function App() {
   const [selectedPlanet, setSelectedPlanet] = useState(null);
   const [account, setAccount] = useState(null);
@@ -678,6 +790,10 @@ function App() {
 
       <div style=${rowStyle}>
         <${PlanetCreator} />
+      </div>
+
+      <div style=${rowStyle}>
+        <${GivePlanetToken} />
       </div>
     </div>
   `;

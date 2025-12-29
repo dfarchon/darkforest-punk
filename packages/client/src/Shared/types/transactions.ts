@@ -9,7 +9,7 @@ import type {
   LocationId,
   MaterialTransfer,
 } from "./identifier";
-import type { Materials } from "./planet";
+import type { MaterialType } from "./planet";
 import type { WorldLocation } from "./world";
 
 // import type { LiteralUnion } from "type-fest";
@@ -93,7 +93,11 @@ export type ContractMethodName =
   | "df__disbandGuild"
   | "df__setGrant"
   | "df__setMemberRole"
-  | "df__kickMember";
+  | "df__kickMember"
+  | "df__changeHomePlanet"
+  | "df__setHomePlanet"
+  | "df__stakeTokens"
+  | "df__unstakePlanet";
 
 export type EthTxStatus =
   | "Init"
@@ -332,6 +336,46 @@ export type UnconfirmedCreateStarBase = TxIntent & {
   // Keep x, y for client-side location creation (not passed to contract)
   x: number;
   y: number;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedChangeHomePlanet = TxIntent & {
+  methodName: "df__changeHomePlanet";
+  newPlanetHash: LocationId;
+  fee: string; // Fee in wei (as string to avoid precision issues)
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedSetHomePlanet = TxIntent & {
+  methodName: "df__setHomePlanet";
+  planetHash: LocationId;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedStakeTokens = TxIntent & {
+  methodName: "df__stakeTokens";
+  planetHash: LocationId;
+  perlin: number;
+  level: number;
+  spaceType: number;
+  biome: number;
+  tokenId: number;
+  x: number;
+  y: number;
+};
+
+/**
+ * @hidden
+ */
+export type UnconfirmedUnstakePlanet = TxIntent & {
+  methodName: "df__unstakePlanet";
+  planetHash: LocationId;
 };
 
 /**

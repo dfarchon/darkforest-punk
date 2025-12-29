@@ -738,6 +738,37 @@ export function createSystemCalls(
     }
   };
 
+  // Home Planet System calls
+  const setHomePlanet = async (planetHash: bigint): Promise<void> => {
+    try {
+      const tx = await worldContract.write.df__setHomePlanet([planetHash]);
+      const receipt = await waitForTransaction(tx as `0x${string}`);
+      console.log("Set home planet successfully:", receipt);
+    } catch (error) {
+      console.error("Set home planet transaction failed:", error);
+      throw error;
+    }
+  };
+
+  const changeHomePlanet = async (newPlanetHash: bigint): Promise<void> => {
+    try {
+      // Note: Fee is calculated and sent as value in the transaction
+      // The contract will calculate the fee based on planet level and spaceType
+      // For now, we send a reasonable estimate (will be adjusted by contract)
+      const tx = await worldContract.write.df__changeHomePlanet(
+        [newPlanetHash],
+        {
+          value: BigInt("100000000000000000"), // 0.1 ETH estimate (contract will refund excess)
+        },
+      );
+      const receipt = await waitForTransaction(tx as `0x${string}`);
+      console.log("Change home planet successfully:", receipt);
+    } catch (error) {
+      console.error("Change home planet transaction failed:", error);
+      throw error;
+    }
+  };
+
   // do not forget init function calls to be accessable in MUD systems calls
   return {
     registerPlayer,
@@ -767,5 +798,7 @@ export function createSystemCalls(
     readPlanetAt,
     getMsgSender,
     withdrawMaterial,
+    setHomePlanet,
+    changeHomePlanet,
   };
 }

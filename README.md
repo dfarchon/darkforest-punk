@@ -1,8 +1,8 @@
-# Dark Forest MUD (🦑,🪐)
+# Dark Forest PUNK (🦑,🪐)
 
 "These violent delights have violent ends."
 
-For the latest updates on the project, Please follow our [twitter](https://x.com/darkforest_mud) or join our [discord](https://discord.gg/XpBPEnsvgX).
+For the latest updates on the project, Please follow our [twitter](https://x.com/darkforest_punk) or join our [discord](https://discord.gg/XpBPEnsvgX).
 
 If you wish to contribute to the project or support our development financially, we invite you to reach out to us.
 
@@ -13,10 +13,6 @@ Prior to the full launch of the project, periodic testing events will be held. W
 To run the project locally, ensure your environment is set up with Node 18 or Node 20.
 
 # Website
-
-v0.1.1 round: https://r1.dfmud.xyz/
-
-v0.1.2 round: https://r2.dfmud.xyz/
 
 # Local Development Setup
 

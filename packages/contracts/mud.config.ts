@@ -112,6 +112,9 @@ export default defineWorld({
     PlanetRevealSystem: {
       openAccess: true,
     },
+    HomePlanetSystem: {
+      openAccess: true,
+    },
   },
   excludeSystems: [
     "BaseSystem",
@@ -244,6 +247,12 @@ export default defineWorld({
     ArtifactNFT: {
       schema: {
         addr: "address",
+      },
+      key: [],
+    },
+    MaterialToken: {
+      schema: {
+        tokenAddress: "address",
       },
       key: [],
     },
@@ -881,6 +890,51 @@ export default defineWorld({
         upgradeFoundryCount: "uint256",
       },
       key: ["player"],
+    },
+    HomePlanet: {
+      schema: {
+        player: "address",
+        planetHash: "bytes32",
+        setAt: "uint64", // timestamp or tick number when home planet was set
+      },
+      key: ["player"],
+    },
+    LastHomeChange: {
+      schema: {
+        player: "address",
+        lastChangeTick: "uint64", // Last tick when home planet was changed
+      },
+      key: ["player"],
+    },
+    StakedLevel: {
+      schema: {
+        player: "address",
+        totalLevel: "uint256", // Number of planets created from staked tokens
+      },
+      key: ["player"],
+    },
+    StakedPlanet: {
+      schema: {
+        planetHash: "bytes32", // Planet created from staked token
+        player: "address",
+        tokenId: "uint256", // Token ID
+        stakedAt: "uint64",
+      },
+      key: ["planetHash"],
+    },
+    StakedPlanetByPlayer: {
+      schema: {
+        player: "address",
+        planetHash: "bytes32",
+        exists: "bool", // Value field to enable set/delete operations
+      },
+      key: ["player", "planetHash"],
+    },
+    PlanetToken: {
+      schema: {
+        tokenAddress: "address", // Address of external ERC20 token contract
+      },
+      key: [],
     },
   },
 });

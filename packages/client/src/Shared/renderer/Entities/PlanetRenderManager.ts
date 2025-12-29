@@ -12,7 +12,9 @@ import {
   memeTypeToNum,
 } from "@df/procedural";
 import { isUnconfirmedMoveTx } from "@df/serde";
-import { artifactIdFromHexStr } from "@df/serde";
+import { artifactIdFromHexStr, locationIdToHexStr } from "@df/serde";
+import { getComponentValue } from "@latticexyz/recs";
+import { encodeEntity } from "@latticexyz/store-sync/recs";
 import type {
   Artifact,
   ArtifactId,
@@ -293,6 +295,17 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       planet.location.coords,
       renderInfo.radii.radiusWorld,
     );
+
+    // Add special effects for ERC20 token planets (staked planets)
+    if (this.isStakedPlanet(planet)) {
+      this.queueERC20PlanetEffects(
+        planet,
+        planet.location.coords,
+        renderInfo.radii.radiusWorld,
+        now,
+      );
+    }
+
     this.queueAsteroids(
       planet,
       planet.location.coords,
@@ -1354,6 +1367,77 @@ export class PlanetRenderManager implements PlanetRenderManagerType {
       // Default to regular planet renderer
       pR.queuePlanetBody(planet, centerW, radiusW);
     }
+  }
+
+  /**
+   * Check if a planet is created from staked ERC20 tokens
+   */
+  private isStakedPlanet(planet: Planet): boolean {
+    const components = this.getComponents();
+    if (!components?.StakedPlanet) {
+      return false;
+    }
+
+    try {
+      const planetEntityKey = encodeEntity(
+        components.StakedPlanet.metadata.keySchema,
+        {
+          planetHash: locationIdToHexStr(planet.locationId) as `0x${string}`,
+        },
+      );
+      const stakedPlanet = getComponentValue(
+        components.StakedPlanet,
+        planetEntityKey,
+      );
+      // If stakedPlanet exists and has a non-zero player address, it's a staked planet
+      return (
+        stakedPlanet !== undefined &&
+        stakedPlanet.player !== undefined &&
+        stakedPlanet.player !== "0x0000000000000000000000000000000000000000"
+      );
+    } catch (e) {
+      console.warn("Failed to check if planet is staked:", e);
+      return false;
+    }
+  }
+
+  /**
+   * Add special visual effects for ERC20 token planets (glowing ring, pulsing effect)
+   */
+  private queueERC20PlanetEffects(
+    planet: Planet,
+    centerW: WorldCoords,
+    radiusW: number,
+    now: number,
+  ): void {
+    const { circleRenderer: cR } = this.renderer;
+    if (!cR) {
+      return;
+    }
+
+    // Create a pulsing effect using time
+    const pulseSpeed = 2.0; // Speed of pulse
+    const pulseAmount = 0.15; // How much the ring expands/contracts (15%)
+    const pulse = Math.sin(now * pulseSpeed) * pulseAmount + 1.0;
+
+    // ERC20 token planet color: Gold/Yellow with slight blue tint
+    // RGB: Gold (255, 215, 0) with blue tint -> (200, 180, 255)
+    // Using a purple-gold gradient to make it distinctive
+    const baseColor: RGBAVec = [200, 180, 255, 180]; // Purple-gold with transparency
+    const outerColor: RGBAVec = [255, 215, 0, 120]; // Gold outer ring with less opacity
+
+    // Inner glow ring (closer to planet)
+    const innerRadius = radiusW * (1.15 + pulse * 0.05);
+    cR.queueCircleWorld(centerW, innerRadius, baseColor);
+
+    // Outer pulsing ring (further from planet)
+    const outerRadius = radiusW * (1.3 + pulse * 0.1);
+    cR.queueCircleWorld(centerW, outerRadius, outerColor);
+
+    // Additional outer ring for extra visibility
+    const extraRadius = radiusW * (1.45 + pulse * 0.15);
+    const extraColor: RGBAVec = [200, 180, 255, 80]; // More transparent outer ring
+    cR.queueCircleWorld(centerW, extraRadius, extraColor);
   }
 
   private queueBlackDomain(

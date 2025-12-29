@@ -38,6 +38,10 @@ import {
   isUnconfirmedCraftSpaceshipTx,
   isUnconfirmedCraftModuleTx,
   isUnconfirmedCreateStarBaseTx,
+  isUnconfirmedChangeHomePlanetTx,
+  isUnconfirmedSetHomePlanetTx,
+  isUnconfirmedStakeTokensTx,
+  isUnconfirmedUnstakePlanetTx,
   isUnconfirmedInstallModuleTx,
   isUnconfirmedInstallStarbaseModuleTx,
   isUnconfirmedUninstallModuleTx,
@@ -123,10 +127,14 @@ import type {
   UnconfirmedBuySpaceship,
   UnconfirmedCapturePlanet,
   UnconfirmedChangeArtifactImageType,
+  UnconfirmedChangeHomePlanet,
   UnconfirmedChargeArtifact,
   UnconfirmedCraftSpaceship,
   UnconfirmedCraftModule,
   UnconfirmedCreateStarBase,
+  UnconfirmedSetHomePlanet,
+  UnconfirmedStakeTokens,
+  UnconfirmedUnstakePlanet,
   UnconfirmedUpgradeFoundry,
   UnconfirmedInstallModule,
   UnconfirmedUninstallModule,
@@ -5339,6 +5347,304 @@ export class GameManager extends EventEmitter {
     } catch (e) {
       this.getNotificationsManager().txInitError(
         "df__createStarBase",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async changeHomePlanet(
+    newPlanetHash: LocationId,
+  ): Promise<Transaction<UnconfirmedChangeHomePlanet>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const newPlanet = this.entityStore.getPlanetWithId(newPlanetHash);
+      if (!newPlanet) {
+        throw new Error("tried to set home planet from an unknown planet");
+      }
+      if (newPlanet.planetType !== PlanetType.PLANET) {
+        throw new Error("can only set PLANET type as home planet");
+      }
+      if (!this.checkDelegateCondition(newPlanet.owner, this.getAccount())) {
+        throw new Error("can only set home planet from planets you own");
+      }
+      if (!isLocatable(newPlanet)) {
+        throw new Error("planet location must be revealed");
+      }
+
+      if (
+        newPlanet.transactions?.hasTransaction(isUnconfirmedChangeHomePlanetTx)
+      ) {
+        throw new Error(
+          "another home planet change action is already in progress",
+        );
+      }
+
+      const delegator = newPlanet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const owner = this.getAccount();
+      if (!owner) {
+        throw new Error("no account");
+      }
+      const ownerStr = owner as string;
+
+      // Calculate estimated fee (matches contract logic)
+      // Base fee: 0.01 ETH
+      const baseFee = BigNumber.from("10000000000000000"); // 0.01 ETH in wei
+      const levelMultiplier = 100 + newPlanet.planetLevel * 15; // 100% + 15% per level
+
+      // SpaceType multiplier (matches contract)
+      let spaceTypeMultiplier = 100;
+      if (newPlanet.spaceType === SpaceType.SPACE) {
+        spaceTypeMultiplier = 110;
+      } else if (newPlanet.spaceType === SpaceType.DEEP_SPACE) {
+        spaceTypeMultiplier = 130;
+      } else if (newPlanet.spaceType === SpaceType.DEAD_SPACE) {
+        spaceTypeMultiplier = 150;
+      }
+
+      const totalMultiplier = levelMultiplier * spaceTypeMultiplier;
+      const fee = baseFee.mul(totalMultiplier).div(10000); // Divide by 100*100
+
+      // Get entry fee
+      const entryFee = this.getTransactionFee();
+      const totalValue = fee.add(entryFee);
+
+      const newPlanetHashDecStr = locationIdToDecStr(newPlanetHash);
+
+      const txIntent: UnconfirmedChangeHomePlanet = {
+        delegator: delegator,
+        methodName: "df__changeHomePlanet",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([newPlanetHashDecStr]),
+        newPlanetHash,
+        fee: fee.toString(),
+      };
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: totalValue,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__changeHomePlanet",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async setHomePlanet(
+    planetHash: LocationId,
+  ): Promise<Transaction<UnconfirmedSetHomePlanet>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const planet = this.entityStore.getPlanetWithId(planetHash);
+      if (!planet) {
+        throw new Error("tried to set home planet from an unknown planet");
+      }
+      if (planet.planetType !== PlanetType.PLANET) {
+        throw new Error("can only set PLANET type as home planet");
+      }
+      if (!this.checkDelegateCondition(planet.owner, this.getAccount())) {
+        throw new Error("can only set home planet from planets you own");
+      }
+
+      if (planet.transactions?.hasTransaction(isUnconfirmedSetHomePlanetTx)) {
+        throw new Error(
+          "another home planet set action is already in progress",
+        );
+      }
+
+      const delegator = planet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const owner = this.getAccount();
+      if (!owner) {
+        throw new Error("no account");
+      }
+      const ownerStr = owner as string;
+
+      const planetHashDecStr = locationIdToDecStr(planetHash);
+
+      const txIntent: UnconfirmedSetHomePlanet = {
+        delegator: delegator,
+        methodName: "df__setHomePlanet",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([planetHashDecStr]),
+        planetHash,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__setHomePlanet",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async stakePlanetToken(
+    sourcePlanetHash: LocationId,
+    newPlanetHash: LocationId,
+    perlin: number,
+    level: number,
+    spaceType: number,
+    biome: Biome,
+    tokenId: number,
+    x: number,
+    y: number,
+  ): Promise<Transaction<UnconfirmedStakeTokens>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const sourcePlanet = this.entityStore.getPlanetWithId(sourcePlanetHash);
+      if (!sourcePlanet) {
+        throw new Error("tried to stake from an unknown planet");
+      }
+      if (sourcePlanet.planetType !== PlanetType.PLANET) {
+        throw new Error("can only stake from PLANET type");
+      }
+      if (!this.checkDelegateCondition(sourcePlanet.owner, this.getAccount())) {
+        throw new Error("can only stake from planets you own");
+      }
+      if (!isLocatable(sourcePlanet)) {
+        throw new Error("source planet location must be revealed");
+      }
+
+      if (
+        sourcePlanet.transactions?.hasTransaction(isUnconfirmedStakeTokensTx)
+      ) {
+        throw new Error(
+          "another ERC20 planet staking action is already in progress",
+        );
+      }
+
+      const delegator = sourcePlanet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const owner = this.getAccount();
+      if (!owner) {
+        throw new Error("no account");
+      }
+      const ownerStr = owner as string;
+
+      const newPlanetHashDecStr = locationIdToDecStr(newPlanetHash);
+
+      const txIntent: UnconfirmedStakeTokens = {
+        delegator: delegator,
+        methodName: "df__stakeTokens",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([
+          newPlanetHashDecStr,
+          perlin,
+          level,
+          spaceType,
+          biome,
+          tokenId,
+          x,
+          y,
+        ]),
+        planetHash: newPlanetHash,
+        perlin,
+        level,
+        spaceType,
+        biome,
+        tokenId,
+        x,
+        y,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+      await this.hardRefreshPlanet(newPlanetHash);
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__stakeTokens",
+        (e as Error).message,
+      );
+      throw e;
+    }
+  }
+
+  public async unstakePlanet(
+    planetHash: LocationId,
+  ): Promise<Transaction<UnconfirmedUnstakePlanet>> {
+    try {
+      if (!this.account) {
+        throw new Error("no account");
+      }
+
+      const planet = this.entityStore.getPlanetWithId(planetHash);
+      if (!planet) {
+        throw new Error("tried to unstake an unknown planet");
+      }
+      if (!this.checkDelegateCondition(planet.owner, this.getAccount())) {
+        throw new Error("can only unstake planets you own");
+      }
+
+      if (planet.transactions?.hasTransaction(isUnconfirmedUnstakePlanetTx)) {
+        throw new Error("another unstake action is already in progress");
+      }
+
+      const delegator = planet.owner;
+      if (!delegator) {
+        throw Error("no delegator account");
+      }
+
+      const owner = this.getAccount();
+      if (!owner) {
+        throw new Error("no account");
+      }
+
+      const planetHashDecStr = locationIdToDecStr(planetHash);
+
+      const txIntent: UnconfirmedUnstakePlanet = {
+        delegator: delegator,
+        methodName: "df__unstakePlanet",
+        contract: this.contractsAPI.contract,
+        args: Promise.resolve([planetHashDecStr]),
+        planetHash,
+      };
+
+      const transactionFee = this.getTransactionFee();
+
+      const tx = await this.contractsAPI.submitTransaction(txIntent, {
+        value: transactionFee,
+      });
+
+      return tx;
+    } catch (e) {
+      this.getNotificationsManager().txInitError(
+        "df__unstakePlanet",
         (e as Error).message,
       );
       throw e;

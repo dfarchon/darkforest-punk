@@ -15,7 +15,7 @@ interface Errors {
   error AlreadySpawned(); // 0xb7298922
   error InvalidSpawnPlanet(); // 0x486b36b3
   error InvalidSpawnProof(); // 0x7cbbb34f
-
+  error InsufficientScore(); // 0xb1e391a6
   // verify system
   error InvalidMoveProof(); // 0x217623c0
   error InvalidProofInput(uint8 index); // 255 for snark and perlin config, 0xde56fcb9
@@ -124,4 +124,30 @@ interface Errors {
 
   // BaseSystem
   error InsufficientEntryFee(uint256 required); // 0xe270e71a
+
+  // MaterialToken
+  error NotMinter(address account); // 0x361c31f2
+  error NotPlayer(address account); // 0x87080b97
+  error InvalidTokenId(uint256 tokenId); // 0xed15e6cf
+  error InvalidRecipient(address recipient); // 0x17858bbe
+  error RoyaltyTooHigh(uint96 royaltyBps, uint96 maxBps); // 0xb9015a61
+  error InvalidMinter(address minter); // 0xf78d2300
+  error NotRegisteredSystem(address system); // 0x5d9ba50e
+  error ArraysLengthMismatch(uint256 length1, uint256 length2); // 0x4c59bf28
+  error InsufficientBalance(address account, uint256 tokenId, uint256 required, uint256 available); // 0x670f0045
+  error NotOwnerNorApproved(address caller, address owner); // 0xb2d373dd
+
+  // HomePlanetSystem errors
+  error HomePlanetAlreadySet(); // 0x3a81d6fc
+  error PlanetAlreadyStaked(); // 0x56887924
+  error PlanetNotStaked(); // 0x9b8b75ee
+  error NoHomePlanet(); // 0xaba47339
+  error HomePlanetNotOwned(); // 0xab2bcfd3
+  error InsufficientTokenBalance(); // 0x932b84b0
+  error InsufficientStakedTokens(); // 0x134712e2
+  error InsufficientFee(); // 0xfe845fce
+  error StakingCapacityExceeded(uint256 availableCapacity); // 0x0edddad6
+  error HomePlanetChangeCooldown(); // 0x47e6b7ca
+  error InvalidTokenLevel(); // 0x504f5026
+  error NotTokenOwner(); // 0xb2d373dd
 }

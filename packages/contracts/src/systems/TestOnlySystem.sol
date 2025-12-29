@@ -20,6 +20,8 @@ import { PlanetBiomeConfig, PlanetBiomeConfigData } from "codegen/tables/PlanetB
 import { PlanetMaterialStorage } from "codegen/tables/PlanetMaterialStorage.sol";
 import { PlanetMaterial } from "codegen/tables/PlanetMaterial.sol";
 import { PlayerJunkLimit } from "codegen/tables/PlayerJunkLimit.sol";
+import { PlanetToken as PlanetTokenTable } from "codegen/tables/PlanetToken.sol";
+import { IPlanetToken } from "../tokens/IPlanetToken.sol";
 
 contract TestOnlySystem is BaseSystem {
   // function createPlanet(
@@ -157,5 +159,28 @@ contract TestOnlySystem is BaseSystem {
       uint8(materialType),
       PlanetMaterial.get(bytes32(planetHash), uint8(materialType)) + amount
     );
+  }
+
+  /**
+   * @notice Admin mints ERC721 PlanetToken NFT to a player
+   * @param recipient Address to receive the token
+   * @param planetLevel Planet level (1-9) to store in token metadata
+   * @param planetType Planet type (PLANET, ASTEROID_FIELD, etc.)
+   * @return tokenId The minted token ID
+   * @dev Gets PlanetToken address from MUD table and calls mint function
+   *      Admin address must be granted minter permissions on PlanetToken
+   */
+  function erc20Mint(address recipient, uint8 planetLevel, PlanetType planetType) public returns (uint256) {
+    require(recipient != address(0), "TestOnlySystem: invalid recipient");
+    require(planetLevel >= 1 && planetLevel <= 9, "TestOnlySystem: invalid level (1-9)");
+    require(planetType != PlanetType.UNKNOWN, "TestOnlySystem: invalid planetType");
+
+    // Get PlanetToken address from MUD table
+    address planetTokenAddress = PlanetTokenTable.get();
+    require(planetTokenAddress != address(0), "TestOnlySystem: PlanetToken address not set");
+
+    // Call mint on PlanetToken contract (ERC721 - mints one NFT)
+    IPlanetToken planetToken = IPlanetToken(planetTokenAddress);
+    return planetToken.mint(recipient, planetLevel, planetType);
   }
 }

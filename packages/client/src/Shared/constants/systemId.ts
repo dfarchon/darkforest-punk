@@ -18,6 +18,7 @@ import FoundryUpgradeSystemAbi from "contracts/out/FoundryUpgradeSystem.sol/Foun
 import SpaceshipModuleSystemAbi from "contracts/out/SpaceshipModuleSystem.sol/SpaceshipModuleSystem.abi.json";
 import StarbaseSystemAbi from "contracts/out/StarbaseSystem.sol/StarbaseSystem.abi.json";
 import StarbaseModuleSystemAbi from "contracts/out/StarbaseModuleSystem.sol/StarbaseModuleSystem.abi.json";
+import HomePlanetSystemAbi from "contracts/out/HomePlanetSystem.sol/HomePlanetSystem.abi.json";
 import PlayerSystemAbi from "contracts/out/PlayerSystem.sol/PlayerSystem.abi.json";
 import TestOnlySystemAbi from "contracts/out/TestOnlySystem.sol/TestOnlySystem.abi.json";
 import TickSystemAbi from "contracts/out/TickSystem.sol/TickSystem.abi.json";
@@ -197,6 +198,14 @@ export const STARBASE_MODULE_SYSTEM_ID = resourceToHex({
 
 export const STARBASE_MODULE_SYSTEM_ABI: Abi = StarbaseModuleSystemAbi;
 
+export const HOME_PLANET_SYSTEM_ID = resourceToHex({
+  type: "system",
+  namespace: "df",
+  name: "HomePlanetSystem",
+});
+
+export const HOME_PLANET_SYSTEM_ABI: Abi = HomePlanetSystemAbi;
+
 export const get_ABI_from_FunctionName = (functionName: string) => {
   if (functionName === "move" || functionName === "legacyMove") {
     return MOVE_SYSTEM_ABI;
@@ -255,6 +264,17 @@ export const get_ABI_from_FunctionName = (functionName: string) => {
     functionName === "df__createStarBase"
   ) {
     return STARBASE_SYSTEM_ABI;
+  } else if (
+    functionName === "setHomePlanet" ||
+    functionName === "df__setHomePlanet" ||
+    functionName === "changeHomePlanet" ||
+    functionName === "df__changeHomePlanet" ||
+    functionName === "stakeTokens" ||
+    functionName === "df__stakeTokens" ||
+    functionName === "unstakePlanet" ||
+    functionName === "df__unstakePlanet"
+  ) {
+    return HOME_PLANET_SYSTEM_ABI;
   } else if (functionName === "setPlanetEmoji") {
     return PLANET_EMOJI_SYSTEM_ABI;
   } else if (functionName === "initializePlayer") {
@@ -384,6 +404,17 @@ export const get_SystemId_from_FunctionName = (functionName: string) => {
     functionName === "df__createStarBase"
   ) {
     return STARBASE_SYSTEM_ID;
+  } else if (
+    functionName === "setHomePlanet" ||
+    functionName === "df__setHomePlanet" ||
+    functionName === "changeHomePlanet" ||
+    functionName === "df__changeHomePlanet" ||
+    functionName === "stakeTokens" ||
+    functionName === "df__stakeTokens" ||
+    functionName === "unstakePlanet" ||
+    functionName === "df__unstakePlanet"
+  ) {
+    return HOME_PLANET_SYSTEM_ID;
   } else if (functionName === "initializePlayer") {
     return PLAYER_SYSTEM_ID;
   } else if (

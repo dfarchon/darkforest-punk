@@ -139,6 +139,7 @@ export class GameUIManager extends EventEmitter {
   private isChoosingTargetPlanet = false;
   private choosingStarbaseLocationPlanet: LocatablePlanet | undefined =
     undefined;
+  private choosingPlanetTokenLocation: LocatablePlanet | undefined = undefined;
 
   private onChooseTargetPlanet?: (planet: LocatablePlanet | undefined) => void;
 
@@ -653,6 +654,56 @@ export class GameUIManager extends EventEmitter {
       spaceType,
       starbaseType,
     );
+  }
+
+  public changeHomePlanet(newPlanetHash: LocationId) {
+    this.playClickSound();
+    this.gameManager.changeHomePlanet(newPlanetHash);
+  }
+
+  public setHomePlanet(planetHash: LocationId) {
+    this.playClickSound();
+    this.gameManager.setHomePlanet(planetHash);
+  }
+
+  public setChoosingPlanetTokenLocation(
+    planet: LocatablePlanet | undefined,
+  ): void {
+    this.choosingPlanetTokenLocation = planet;
+  }
+
+  public getChoosingPlanetTokenLocation(): LocatablePlanet | undefined {
+    return this.choosingPlanetTokenLocation;
+  }
+
+  public async stakePlanetToken(
+    sourcePlanetHash: LocationId,
+    newPlanetHash: LocationId,
+    perlin: number,
+    level: number,
+    spaceType: number,
+    biome: Biome,
+    tokenId: number,
+    x: number,
+    y: number,
+  ) {
+    this.playClickSound();
+    this.gameManager.stakePlanetToken(
+      sourcePlanetHash,
+      newPlanetHash,
+      perlin,
+      level,
+      spaceType,
+      biome,
+      tokenId,
+      x,
+      y,
+    );
+  }
+
+  public unstakePlanet(planetHash: LocationId) {
+    this.playClickSound();
+    this.gameManager.unstakePlanet(planetHash);
   }
 
   public revertMove(

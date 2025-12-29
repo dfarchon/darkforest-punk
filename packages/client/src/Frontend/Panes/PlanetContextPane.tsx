@@ -7,6 +7,7 @@ import type { GameUIManager } from "../../Backend/GameLogic/GameUIManager";
 import type { Wrapper } from "../../Backend/Utils/Wrapper";
 import { CapturePlanetButton } from "../Components/CapturePlanetButton";
 import { VerticalSplit } from "../Components/CoreUI";
+import { HomePlanetButton } from "../Components/HomePlanetButton";
 import { MineArtifactButton } from "../Components/MineArtifactButton";
 import { OpenBlueButton } from "../Components/OpenBlueButton";
 import { OpenDropBombButton } from "../Components/OpenDropBombButton";
@@ -327,6 +328,8 @@ function PlanetContextPaneContent({
         />
 
         <ManageJunkButton wrapper={planet} />
+
+        <HomePlanetButton wrapper={planet} />
 
         <MineArtifactButton planetWrapper={planet} />
         {/* {captureRow} */}

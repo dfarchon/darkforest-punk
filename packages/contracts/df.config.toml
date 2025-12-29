@@ -8,10 +8,23 @@ number = 4
 [entry_fee]
 value = 1000000000000
 
+#[royalty_recipient]
+# Address to receive royalties from token sales (ERC2981)
+# If not set, defaults to deployer address
+# address = "0x0000000000000000000000000000000000000000"
+
 [artifact_nft]
 address = "0x0000000000000000000000000000000000000000"
 # address = "0x14a11B17105cC70F154f84eDe21E9B08dd832577"
 set_current_round = true # if true,should be deployed by nft contract owner
+
+[planet_token]
+# ERC20 PlanetToken address (PUNK PlanetToken)
+# Set this to reuse an existing PlanetToken contract across multiple rounds
+# If not set or set to 0x0000000000000000000000000000000000000000, a new contract will be deployed
+address = "0x0000000000000000000000000000000000000000"
+# Example for reusing existing token:
+# address = "0x1234567890123456789012345678901234567890"
 
 [temp]
 b_skip_proof_check = false
