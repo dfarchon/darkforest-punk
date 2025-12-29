@@ -31,6 +31,7 @@ import type {
   UnconfirmedActivateArtifact,
   UnconfirmedMove,
   UnconfirmedRefreshPlanet,
+  UnconfirmedRevertMove,
   UnconfirmedSpendGPTTokens,
   UnconfirmedUpgrade,
   Upgrade,
@@ -84,6 +85,9 @@ import { PluginManager } from "./PluginManager";
 import TutorialManager, { TutorialState } from "./TutorialManager";
 import { ViewportEntities } from "./ViewportEntities";
 
+// Hover delay in milliseconds
+const MULTI_MOVE_HOVER_DELAY = 500;
+
 export const enum GameUIManagerEvent {
   InitializedPlayer = "InitializedPlayer",
   InitializedPlayerError = "InitializedPlayerError",
@@ -110,6 +114,12 @@ export class GameUIManager extends EventEmitter {
   private mouseHoveringOverPlanet: LocatablePlanet | undefined;
   private mouseHoveringOverCoords: WorldCoords | undefined;
   private mouseHoveringOverArtifactId: ArtifactId | undefined;
+  private mouseHoveringOverVoyage: QueuedArrival | undefined;
+  private selectedVoyage: QueuedArrival | undefined;
+  private multipleMovesAtCoords: QueuedArrival[] | undefined;
+  private showMultiMoveSelector: boolean = false;
+  private multiMoveSelectorPosition: { x: number; y: number } = { x: 0, y: 0 };
+  private multiMoveHoverTimeout: NodeJS.Timeout | null = null;
   private sendingPlanet: LocatablePlanet | undefined;
   private sendingCoords: WorldCoords | undefined;
   private isSending = false;
@@ -144,10 +154,21 @@ export class GameUIManager extends EventEmitter {
   public readonly hoverPlanet$: Monomitter<Planet | undefined>;
   public readonly hoverArtifactId$: Monomitter<ArtifactId | undefined>;
   public readonly hoverArtifact$: Monomitter<Artifact | undefined>;
+  public readonly hoverVoyage$: Monomitter<QueuedArrival | undefined>;
+  public readonly selectedVoyage$: Monomitter<QueuedArrival | undefined>;
+  public readonly multipleMoves$: Monomitter<QueuedArrival[] | undefined>;
+  public readonly showMultiMoveSelector$: Monomitter<boolean>;
+  public readonly multiMoveSelectorPosition$: Monomitter<{
+    x: number;
+    y: number;
+  }>;
   public readonly myArtifacts$: Monomitter<Map<ArtifactId, Artifact>>;
 
   public readonly isSending$: Monomitter<boolean>;
   public readonly isAbandoning$: Monomitter<boolean>;
+  public readonly artifactSending$: Monomitter<
+    { planetId: LocationId; artifact: Artifact | undefined } | undefined
+  >;
 
   private planetHoveringInRenderer = false;
 
@@ -197,11 +218,19 @@ export class GameUIManager extends EventEmitter {
       this.hoverArtifactId$,
       this.gameManager.getArtifactUpdated$(),
     );
+    this.hoverVoyage$ = monomitter<QueuedArrival | undefined>();
+    this.selectedVoyage$ = monomitter<QueuedArrival | undefined>();
+    this.multipleMoves$ = monomitter<QueuedArrival[] | undefined>();
+    this.showMultiMoveSelector$ = monomitter<boolean>();
+    this.multiMoveSelectorPosition$ = monomitter<{ x: number; y: number }>();
     this.myArtifacts$ = this.gameManager.getMyArtifactsUpdated$();
     this.viewportEntities = new ViewportEntities(this.gameManager, this);
 
     this.isSending$ = monomitter(true);
     this.isAbandoning$ = monomitter(true);
+    this.artifactSending$ = monomitter<
+      { planetId: LocationId; artifact: Artifact | undefined } | undefined
+    >();
 
     settingChanged$.subscribe((setting) => {
       // If user selects to always use the default energy level, we need to clear existing energy send level values set.
@@ -299,6 +328,11 @@ export class GameUIManager extends EventEmitter {
     this.gameManager.destroy();
     this.selectedPlanetId$.clear();
     this.hoverArtifactId$.clear();
+    this.hoverVoyage$.clear();
+    this.selectedVoyage$.clear();
+    this.multipleMoves$.clear();
+    this.showMultiMoveSelector$.clear();
+    this.multiMoveSelectorPosition$.clear();
   }
 
   public getStringSetting(setting: Setting): string | undefined {
@@ -559,6 +593,14 @@ export class GameUIManager extends EventEmitter {
     this.gameManager.withdrawMaterial(locationId, materialType, amount);
   }
 
+  public revertMove(
+    moveId: string,
+    toPlanetHash: LocationId,
+  ): Promise<Transaction<UnconfirmedRevertMove>> {
+    this.playClickSound();
+    return this.gameManager.revertMove(moveId, toPlanetHash);
+  }
+
   public addJunk(locationId: LocationId, biomeBase?: number) {
     this.playClickSound();
     console.log("addJunk", locationId, biomeBase);
@@ -720,6 +762,14 @@ export class GameUIManager extends EventEmitter {
     );
   }
 
+  public getTimeForMove(
+    fromId: LocationId,
+    toId: LocationId,
+    abandoning = false,
+  ): number {
+    return this.gameManager.getTimeForMove(fromId, toId, abandoning);
+  }
+
   public getEnergyNeededForMove(
     fromId: LocationId,
     toId: LocationId,
@@ -771,10 +821,61 @@ export class GameUIManager extends EventEmitter {
     }
   }
 
-  public onMouseClick(_coords: WorldCoords) {
+  public onMouseClick(coords: WorldCoords) {
+    // Check for multiple voyages at the same coordinates
+    const voyagesAtCoords = this.getVoyagesAtCoords(coords);
+
+    if (voyagesAtCoords.length > 1) {
+      // Clear any existing timeout since we're clicking
+      if (this.multiMoveHoverTimeout) {
+        clearTimeout(this.multiMoveHoverTimeout);
+        this.multiMoveHoverTimeout = null;
+      }
+
+      // Always show/update the multi-move selector for multiple moves on click
+      this.setMultipleMoves(voyagesAtCoords);
+      this.setShowMultiMoveSelector(true);
+
+      // Convert world coordinates to screen coordinates for the selector
+      const screenCoords = this.worldToScreenCoords(coords);
+      this.setMultiMoveSelectorPosition(screenCoords);
+
+      // Select the first move by default so the line is selected
+      this.setSelectedVoyage(voyagesAtCoords[0]);
+      return;
+    } else if (voyagesAtCoords.length === 1) {
+      // Single voyage - handle as before
+      const clickedVoyage = voyagesAtCoords[0];
+
+      // If clicking on the same voyage, deselect it
+      if (
+        this.selectedVoyage &&
+        this.selectedVoyage.eventId === clickedVoyage.eventId
+      ) {
+        this.setSelectedVoyage(undefined);
+      } else {
+        // Select the clicked voyage
+        this.setSelectedVoyage(clickedVoyage);
+      }
+
+      // Hide multi-move selector when selecting a single voyage
+      this.setShowMultiMoveSelector(false);
+      return;
+    }
+
+    // If clicking on empty space, deselect voyage and hide multi-move selector
     if (!this.mouseDownOverPlanet && !this.mouseHoveringOverPlanet) {
+      // Clear any existing timeout
+      if (this.multiMoveHoverTimeout) {
+        clearTimeout(this.multiMoveHoverTimeout);
+        this.multiMoveHoverTimeout = null;
+      }
+
       this.setSelectedPlanet(undefined);
       this.selectedCoords = undefined;
+      this.setSelectedVoyage(undefined);
+      this.setMultipleMoves(undefined);
+      this.setShowMultiMoveSelector(false);
     }
   }
 
@@ -1010,6 +1111,7 @@ export class GameUIManager extends EventEmitter {
       this.abandoning = false;
       this.isAbandoning$.publish(false);
     }
+    this.artifactSending$.publish({ planetId, artifact });
     this.gameManager.getGameObjects().forceTick(planetId);
   }
 
@@ -1402,8 +1504,95 @@ export class GameUIManager extends EventEmitter {
     );
   }
 
+  public setHoveringOverVoyage(voyage?: QueuedArrival) {
+    this.mouseHoveringOverVoyage = voyage;
+    this.hoverVoyage$.publish(voyage);
+  }
+
+  public setSelectedVoyage(voyage?: QueuedArrival) {
+    this.selectedVoyage = voyage;
+    this.selectedVoyage$.publish(voyage);
+  }
+
   public getHoveringOverPlanet(): Planet | undefined {
     return this.mouseHoveringOverPlanet;
+  }
+
+  public getHoveringVoyage(): QueuedArrival | undefined {
+    return this.mouseHoveringOverVoyage;
+  }
+
+  public setMultipleMoves(moves: QueuedArrival[] | undefined) {
+    this.multipleMovesAtCoords = moves;
+    this.multipleMoves$.publish(moves);
+  }
+
+  public getMultipleMoves(): QueuedArrival[] | undefined {
+    return this.multipleMovesAtCoords;
+  }
+
+  public setShowMultiMoveSelector(show: boolean) {
+    this.showMultiMoveSelector = show;
+    this.showMultiMoveSelector$.publish(show);
+  }
+
+  public getShowMultiMoveSelector(): boolean {
+    return this.showMultiMoveSelector;
+  }
+
+  public setMultiMoveSelectorPosition(position: { x: number; y: number }) {
+    this.multiMoveSelectorPosition = position;
+    this.multiMoveSelectorPosition$.publish(position);
+  }
+
+  public getMultiMoveSelectorPosition(): { x: number; y: number } {
+    return this.multiMoveSelectorPosition;
+  }
+
+  public selectMoveFromMultiple(move: QueuedArrival) {
+    this.setSelectedVoyage(move);
+    // Keep the multi-move selector open so user can see details and select other moves
+    // Only close when clicking outside or selecting a different move line
+  }
+
+  private worldToScreenCoords(worldCoords: WorldCoords): {
+    x: number;
+    y: number;
+  } {
+    // Convert world coordinates to screen coordinates
+    const viewport = this.getViewport();
+
+    // Get the viewport bounds in world coordinates
+    const leftBound = viewport.getLeftBound();
+    const topBound = viewport.getTopBound();
+    const rightBound = viewport.getRightBound();
+    const bottomBound = viewport.getBottomBound();
+
+    // Get viewport dimensions in pixels
+    const viewportWidth = viewport.viewportWidth;
+    const viewportHeight = viewport.viewportHeight;
+
+    // Calculate the scale factor
+    const worldWidth = rightBound - leftBound;
+    const worldHeight = topBound - bottomBound;
+
+    // Convert world coordinates to screen coordinates
+    const screenX = ((worldCoords.x - leftBound) / worldWidth) * viewportWidth;
+    const screenY = ((topBound - worldCoords.y) / worldHeight) * viewportHeight;
+
+    // Ensure we return valid numbers and clamp to viewport bounds
+    return {
+      x: Math.max(0, Math.min(viewportWidth, isNaN(screenX) ? 0 : screenX)),
+      y: Math.max(0, Math.min(viewportHeight, isNaN(screenY) ? 0 : screenY)),
+    };
+  }
+
+  public getSelectedVoyage(): QueuedArrival | undefined {
+    return this.selectedVoyage;
+  }
+
+  public getHoveringOverVoyage(): QueuedArrival | undefined {
+    return this.hoveringOverVoyage;
   }
 
   public getHoveringOverCoords(): WorldCoords | undefined {
@@ -1540,7 +1729,76 @@ export class GameUIManager extends EventEmitter {
     if (!planetId) {
       return false;
     }
+    // KEEP THIS its for artifact types 17 - 22 not for artifact type 3 artifact.spaceship
     return isSpaceShip(this.artifactSending[planetId]?.artifactType);
+  }
+
+  public getVoyageAtCoords(coords: WorldCoords): QueuedArrival | undefined {
+    const voyages = this.getVoyagesAtCoords(coords);
+    return voyages.length > 0 ? voyages[0] : undefined;
+  }
+
+  public getVoyagesAtCoords(coords: WorldCoords): QueuedArrival[] {
+    const voyages = this.getAllVoyages();
+    const currentTick = this.getCurrentTick();
+    const foundVoyages: QueuedArrival[] = [];
+
+    for (const voyage of voyages) {
+      if (currentTick < voyage.arrivalTick) {
+        const fromLoc = this.getLocationOfPlanet(voyage.fromPlanet);
+        const toLoc = this.getLocationOfPlanet(voyage.toPlanet);
+
+        if (!fromLoc || !toLoc) continue;
+
+        // Check if click is near the voyage line (increased threshold for better detection)
+        if (this.isPointNearLine(coords, fromLoc.coords, toLoc.coords, 20)) {
+          foundVoyages.push(voyage);
+        }
+      }
+    }
+
+    return foundVoyages;
+  }
+
+  private isPointNearLine(
+    point: WorldCoords,
+    lineStart: WorldCoords,
+    lineEnd: WorldCoords,
+    threshold: number,
+  ): boolean {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+
+    if (lenSq === 0) {
+      // Line is actually a point
+      const dist = Math.sqrt(A * A + B * B);
+      return dist <= threshold;
+    }
+
+    const param = dot / lenSq;
+    let xx, yy;
+
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    const dx = point.x - xx;
+    const dy = point.y - yy;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance <= threshold;
   }
 
   public isOverOwnPlanet(coords: WorldCoords): Planet | undefined {

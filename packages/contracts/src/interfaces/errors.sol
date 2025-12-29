@@ -3,6 +3,7 @@ pragma solidity >=0.8.24;
 
 interface Errors {
   // ex. error AlreadyRegistered's selector = bytes4(keccak256("AlreadyRegistered()"));
+  // do cast sig "functionName()" in terminal to get the error selector // 0xd7d15059
 
   // player system
   error AlreadyRegistered(); // 0x3a81d6fc
@@ -31,6 +32,10 @@ interface Errors {
   error ArtifactNotOnPlanet(); // 0x37a29a4e
   error PlanetOwnershipMismatch(); //0xb43ec652
   error NotEnoughMaterial(); // 0x7b8217de
+  error MoveNotFound(); // 0xf61e54c1
+  error NotMoveCaptain(); // 0x747a000a
+  error MoveTooFarToRevert(); // 0xc1a1a6ff
+  error MoveAlreadyReverted(); // 0x9b48f541
 
   // tick system
   error Paused(); // 0x9e87fac8

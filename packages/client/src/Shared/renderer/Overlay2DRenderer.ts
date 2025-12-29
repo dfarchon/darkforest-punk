@@ -18,10 +18,11 @@ import type {
   PlanetRenderInfo,
   WorldCoords,
 } from "@df/types";
-import { LogoType, TextAlign } from "@df/types";
+import { ArtifactRarity, LogoType, TextAlign } from "@df/types";
 
 import { avatarFromType } from "./Avatars";
 import { engineConsts } from "./EngineConsts";
+import { EngineUtils } from "./EngineUtils";
 import { hatFromType } from "./Hats";
 import { logoFromType } from "./Logos";
 import { memeFromType } from "./Memes";

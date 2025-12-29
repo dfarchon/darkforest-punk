@@ -295,6 +295,66 @@ library PendingMoveQueueLib {
     }
   }
 
+  function FindMoveIndex(PendingMoveQueue memory _q, uint64 moveId) internal view returns (uint8 moveIndex) {
+    if (_q.IsEmpty()) {
+      return type(uint8).max; // Return max value to indicate not found
+    }
+
+    uint256[] memory indexes = _q.indexes;
+    uint256 head = _q.head;
+    uint256 tail = head + _q.number;
+
+    // Find the move by moveId in the queue
+    for (uint256 i = head; i < tail; ) {
+      uint8 currentIndex = uint8(indexes[i % MAX_MOVE_QUEUE_SIZE]);
+      MoveData memory move = Move.get(bytes32(_q.planetHash), currentIndex);
+      if (move.id == moveId) {
+        return currentIndex;
+      }
+      unchecked {
+        ++i;
+      }
+    }
+    return type(uint8).max; // Return max value to indicate not found
+  }
+
+  function RemoveMove(PendingMoveQueue memory _q, uint64 moveId) internal view {
+    if (_q.IsEmpty()) {
+      return;
+    }
+
+    // Find the move index by moveId
+    uint8 moveIndex = _q.FindMoveIndex(moveId);
+    if (moveIndex == type(uint8).max) {
+      // Move not found in queue
+      return;
+    }
+
+    uint256[] memory indexes = _q.indexes;
+    uint256 head = _q.head;
+    uint256 tail = head + _q.number;
+
+    // Find the position of moveIndex in the queue
+    for (uint256 i = head; i < tail; ) {
+      if (indexes[i % MAX_MOVE_QUEUE_SIZE] == moveIndex) {
+        // Move found, remove it by shifting elements
+        for (uint256 j = i; j < tail - 1; ) {
+          indexes[j % MAX_MOVE_QUEUE_SIZE] = indexes[(j + 1) % MAX_MOVE_QUEUE_SIZE];
+          unchecked {
+            ++j;
+          }
+        }
+        --_q.number;
+        _q.indexes = indexes;
+        _q.shouldWrite = true;
+        return;
+      }
+      unchecked {
+        ++i;
+      }
+    }
+  }
+
   function GetFlyingArtifactsNum(PendingMoveQueue memory _q) internal view returns (uint256) {
     uint256[] memory indexes = _q.indexes;
     uint256 count;
