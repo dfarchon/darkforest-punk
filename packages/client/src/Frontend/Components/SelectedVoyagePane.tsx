@@ -1,5 +1,4 @@
 import { formatCompact, formatNumber } from "@df/gamelogic";
-import { isArtifactSpaceShip } from "@df/gamelogic";
 import { getPlanetName } from "@df/procedural";
 import type { QueuedArrival } from "@df/types";
 import { TooltipName } from "@df/types";
@@ -110,6 +109,7 @@ const VoyageTitle = styled.div`
   font-size: 16px;
   font-weight: bold;
   color: ${dfstyles.colors.text};
+  margin-top: 32px; /* Add space to avoid overlap with DragHandle (30px height) */
   margin-bottom: 8px;
   text-align: center;
   padding-right: 20px; /* Make room for close button */
@@ -694,7 +694,7 @@ export function SelectedVoyagePane({
                   <ConfirmDialog>
                     <ConfirmTitle>Reverse Move?</ConfirmTitle>
                     <ConfirmMessage>
-                      Cost 50% resources and energy to revert.
+                      Cost 50% resources and 50% energy to revert.
                     </ConfirmMessage>
                     <ConfirmButtons>
                       <ConfirmButton

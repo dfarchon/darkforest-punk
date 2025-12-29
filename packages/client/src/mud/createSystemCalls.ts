@@ -706,13 +706,11 @@ export function createSystemCalls(
   const revertMove = async (
     moveId: bigint,
     toPlanetHash: bigint,
-    moveIndex: number,
   ): Promise<void> => {
     try {
       const tx = await worldContract.write.df__revertMove([
         moveId,
         toPlanetHash,
-        moveIndex,
       ]);
       const receipt = await waitForTransaction(tx as `0x${string}`);
       console.log("Move reverted successfully:", receipt);

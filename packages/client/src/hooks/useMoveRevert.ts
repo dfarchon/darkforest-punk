@@ -205,13 +205,6 @@ export function useMoveRevert() {
         throw new Error("Cannot revert this move");
       }
 
-      // Find the move index for this voyage
-      const moveIndex = findMoveIndex(voyage);
-
-      if (moveIndex === -1) {
-        throw new Error("Move not found in destination planet's queue");
-      }
-
       try {
         // Call the revertMove function using GameUIManager (transaction-based approach)
         // This will reverse the direction, set travel time to elapsed time,
@@ -222,7 +215,6 @@ export function useMoveRevert() {
         await gameUIManager.revertMove(
           voyage.eventId, // moveId (string)
           toPlanetHash, // toPlanetHash (LocationId)
-          moveIndex, // moveIndex (number)
         );
 
         // Track this move as reverted

@@ -1,12 +1,7 @@
 import { EMPTY_ADDRESS } from "@df/constants";
 import type { Monomitter } from "@df/events";
 import { monomitter } from "@df/events";
-import {
-  biomeName,
-  isArtifactSpaceShip,
-  isLocatable,
-  isSpaceShip,
-} from "@df/gamelogic";
+import { biomeName, isLocatable, isSpaceShip } from "@df/gamelogic";
 import { isBroken } from "@df/gamelogic";
 import { planetHasBonus } from "@df/hexgen";
 import type { EthConnection } from "@df/network";
@@ -80,7 +75,6 @@ import {
 } from "../../Frontend/Utils/SettingsHooks";
 import UIEmitter, { UIEmitterEvent } from "../../Frontend/Utils/UIEmitter";
 import type { TerminalHandle } from "../../Frontend/Views/Terminal";
-import { getSpaceshipBonuses } from "../../Utils/SpaceshipBonusUtils";
 import type { MiningPattern } from "../Miner/MiningPatterns";
 import { coordsEqual } from "../Utils/Coordinates";
 import type { GameManager } from "./GameManager";
@@ -177,7 +171,6 @@ export class GameUIManager extends EventEmitter {
   >;
 
   private planetHoveringInRenderer = false;
-  private mudComponents: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // lifecycle methods
 
@@ -603,10 +596,9 @@ export class GameUIManager extends EventEmitter {
   public revertMove(
     moveId: string,
     toPlanetHash: LocationId,
-    moveIndex: number,
   ): Promise<Transaction<UnconfirmedRevertMove>> {
     this.playClickSound();
-    return this.gameManager.revertMove(moveId, toPlanetHash, moveIndex);
+    return this.gameManager.revertMove(moveId, toPlanetHash);
   }
 
   public addJunk(locationId: LocationId, biomeBase?: number) {
@@ -760,7 +752,6 @@ export class GameUIManager extends EventEmitter {
     to: LocationId | undefined,
     dist: number | undefined,
     energy: number,
-    mudComponents?: unknown,
   ) {
     return this.gameManager.getEnergyArrivingForMove(
       from,
@@ -890,45 +881,6 @@ export class GameUIManager extends EventEmitter {
 
   public onMouseMove(coords: WorldCoords) {
     this.updateMouseHoveringOverCoords(coords);
-
-    // Check for multiple voyages at the coordinates
-    const voyagesAtCoords = this.getVoyagesAtCoords(coords);
-
-    // Clear any existing timeout
-    if (this.multiMoveHoverTimeout) {
-      clearTimeout(this.multiMoveHoverTimeout);
-      this.multiMoveHoverTimeout = null;
-    }
-
-    if (voyagesAtCoords.length > 1) {
-      // For multiple moves, show the multi-move selector with delay
-      this.setMultipleMoves(voyagesAtCoords);
-
-      // Set timeout to show selector after delay
-      this.multiMoveHoverTimeout = setTimeout(() => {
-        this.setShowMultiMoveSelector(true);
-
-        // Convert world coordinates to screen coordinates for the selector
-        const screenCoords = this.worldToScreenCoords(coords);
-        this.setMultiMoveSelectorPosition(screenCoords);
-      }, MULTI_MOVE_HOVER_DELAY);
-
-      // Don't show a single voyage hover when multiple moves are detected
-      this.setHoveringOverVoyage(undefined);
-    } else if (voyagesAtCoords.length === 1) {
-      // Single voyage - show normally
-      this.setHoveringOverVoyage(voyagesAtCoords[0]);
-      // Only hide multi-move selector if no move is currently selected
-      if (!this.selectedVoyage) {
-        this.setShowMultiMoveSelector(false);
-      }
-    } else {
-      // No voyages - only hide if no move is currently selected
-      this.setHoveringOverVoyage(undefined);
-      if (!this.selectedVoyage) {
-        this.setShowMultiMoveSelector(false);
-      }
-    }
   }
 
   public onMouseUp(coords: WorldCoords) {
@@ -1780,11 +1732,6 @@ export class GameUIManager extends EventEmitter {
     // KEEP THIS its for artifact types 17 - 22 not for artifact type 3 artifact.spaceship
     return isSpaceShip(this.artifactSending[planetId]?.artifactType);
   }
-  m;
-
-  public setMUDComponents(components: unknown): void {
-    this.mudComponents = components;
-  }
 
   public getVoyageAtCoords(coords: WorldCoords): QueuedArrival | undefined {
     const voyages = this.getVoyagesAtCoords(coords);
@@ -1804,7 +1751,7 @@ export class GameUIManager extends EventEmitter {
         if (!fromLoc || !toLoc) continue;
 
         // Check if click is near the voyage line (increased threshold for better detection)
-        if (this.isPointNearLine(coords, fromLoc.coords, toLoc.coords, 50)) {
+        if (this.isPointNearLine(coords, fromLoc.coords, toLoc.coords, 20)) {
           foundVoyages.push(voyage);
         }
       }

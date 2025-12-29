@@ -5079,7 +5079,6 @@ export class GameManager extends EventEmitter {
   public async revertMove(
     moveId: string,
     toPlanetHash: LocationId,
-    moveIndex: number,
   ): Promise<Transaction<UnconfirmedRevertMove>> {
     try {
       if (!this.account) {
@@ -5098,11 +5097,9 @@ export class GameManager extends EventEmitter {
         args: Promise.resolve([
           moveId, // Keep as string for JSON serialization
           locationIdToHexStr(toPlanetHash),
-          moveIndex,
         ]),
         moveId: moveId,
         toPlanetHash,
-        moveIndex,
       };
 
       const transactionFee = this.getTransactionFee();

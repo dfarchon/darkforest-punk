@@ -183,22 +183,7 @@ export class VoyageRenderer implements VoyageRendererType {
           const k = 40;
           const size = (k * 20.0) / (1.0 * viewport.worldToCanvasDist(20));
 
-          if (artifact.artifactType === ArtifactType.Spaceship) {
-            // Handle custom spaceship sprites in voyages
-            const fromLoc = gameUIManager.getLocationOfPlanet(
-              voyage.fromPlanet,
-            );
-            const toLoc = gameUIManager.getLocationOfPlanet(voyage.toPlanet);
-
-            pRM.queueCustomSpaceshipSprite(
-              artifact,
-              viewport.canvasToWorldCoords({ x, y }),
-              viewport.canvasToWorldDist(artifactSizePixels),
-              255,
-              fromLoc?.coords,
-              toLoc?.coords,
-            );
-          } else if (artifact.artifactType !== ArtifactType.Avatar) {
+          if (artifact.artifactType !== ArtifactType.Avatar) {
             sR.queueArtifact(artifact, { x, y }, artifactSizePixels);
           } else {
             pRM.queueArtifactImage(
@@ -281,58 +266,110 @@ export class VoyageRenderer implements VoyageRendererType {
   queueVoyages(): void {
     const { context: gameUIManager, currentTick } = this.renderer;
     const voyages = gameUIManager.getAllVoyages();
-    const selectedVoyage = (gameUIManager as unknown).getSelectedVoyage?.();
-    const hoveredVoyage = (gameUIManager as unknown).getHoveringVoyage?.();
+    const selectedVoyage = (
+      gameUIManager as unknown as {
+        getSelectedVoyage?: () => QueuedArrival | undefined;
+      }
+    ).getSelectedVoyage?.();
+    const hoveredVoyage = (
+      gameUIManager as unknown as {
+        getHoveringVoyage?: () => QueuedArrival | undefined;
+      }
+    ).getHoveringVoyage?.();
+
+    // Separate voyages into selected and unselected groups
+    // This ensures selected voyages are drawn last and appear on top
+    const unselectedVoyages: QueuedArrival[] = [];
+    const selectedVoyages: QueuedArrival[] = [];
 
     for (const voyage of voyages) {
       if (currentTick < voyage.arrivalTick) {
-        const isMyVoyage =
-          voyage.player === gameUIManager.getAccount() ||
-          gameUIManager.getArtifactWithId(voyage.artifactId)?.controller ===
-            gameUIManager.getPlayer()?.address;
-        const isShipVoyage = voyage.player === EMPTY_ADDRESS;
-        const sender = gameUIManager.getPlayer(voyage.player);
-
-        const toPlanet = gameUIManager.getPlanetWithId(voyage.toPlanet);
-
-        if (!toPlanet) continue;
-        const isSupportVoyage =
-          gameUIManager.inSameGuildAtTick(
-            voyage.player,
-            toPlanet.owner,
-            voyage.arrivalTick,
-          ) && voyage.player !== toPlanet.owner;
-
-        // Check if this voyage is selected or hovered
         const isSelected = Boolean(
           selectedVoyage && selectedVoyage.eventId === voyage.eventId,
         );
-        const isHovered = Boolean(
-          hoveredVoyage && hoveredVoyage.eventId === voyage.eventId,
-        );
-
-        this.drawVoyagePath(
-          voyage.fromPlanet,
-          voyage.toPlanet,
-          true,
-          isMyVoyage,
-          isShipVoyage,
-          isSupportVoyage,
-          isSelected,
-          isHovered,
-        );
-
-        this.drawFleet(
-          voyage,
-          sender,
-          isMyVoyage,
-          isShipVoyage,
-          isSupportVoyage,
-        );
+        if (isSelected) {
+          selectedVoyages.push(voyage);
+        } else {
+          unselectedVoyages.push(voyage);
+        }
       } else {
         // this move arrived, apply it to target planet and remove it
         gameUIManager.updateArrival(voyage.toPlanet, voyage);
       }
+    }
+
+    // Draw unselected voyages first
+    for (const voyage of unselectedVoyages) {
+      const isMyVoyage =
+        voyage.player === gameUIManager.getAccount() ||
+        gameUIManager.getArtifactWithId(voyage.artifactId)?.controller ===
+          gameUIManager.getPlayer()?.address;
+      const isShipVoyage = voyage.player === EMPTY_ADDRESS;
+      const sender = gameUIManager.getPlayer(voyage.player);
+
+      const toPlanet = gameUIManager.getPlanetWithId(voyage.toPlanet);
+
+      if (!toPlanet) continue;
+      const isSupportVoyage =
+        gameUIManager.inSameGuildAtTick(
+          voyage.player,
+          toPlanet.owner,
+          voyage.arrivalTick,
+        ) && voyage.player !== toPlanet.owner;
+
+      const isHovered = Boolean(
+        hoveredVoyage && hoveredVoyage.eventId === voyage.eventId,
+      );
+
+      this.drawVoyagePath(
+        voyage.fromPlanet,
+        voyage.toPlanet,
+        true,
+        isMyVoyage,
+        isShipVoyage,
+        isSupportVoyage,
+        false, // not selected
+        isHovered,
+      );
+
+      this.drawFleet(voyage, sender, isMyVoyage, isShipVoyage, isSupportVoyage);
+    }
+
+    // Draw selected voyages last (so they appear on top)
+    for (const voyage of selectedVoyages) {
+      const isMyVoyage =
+        voyage.player === gameUIManager.getAccount() ||
+        gameUIManager.getArtifactWithId(voyage.artifactId)?.controller ===
+          gameUIManager.getPlayer()?.address;
+      const isShipVoyage = voyage.player === EMPTY_ADDRESS;
+      const sender = gameUIManager.getPlayer(voyage.player);
+
+      const toPlanet = gameUIManager.getPlanetWithId(voyage.toPlanet);
+
+      if (!toPlanet) continue;
+      const isSupportVoyage =
+        gameUIManager.inSameGuildAtTick(
+          voyage.player,
+          toPlanet.owner,
+          voyage.arrivalTick,
+        ) && voyage.player !== toPlanet.owner;
+
+      const isHovered = Boolean(
+        hoveredVoyage && hoveredVoyage.eventId === voyage.eventId,
+      );
+
+      this.drawVoyagePath(
+        voyage.fromPlanet,
+        voyage.toPlanet,
+        true,
+        isMyVoyage,
+        isShipVoyage,
+        isSupportVoyage,
+        true, // selected
+        isHovered,
+      );
+
+      this.drawFleet(voyage, sender, isMyVoyage, isShipVoyage, isSupportVoyage);
     }
 
     const unconfirmedDepartures = gameUIManager.getUnconfirmedMoves();
@@ -425,7 +462,7 @@ export class VoyageRenderer implements VoyageRendererType {
    * Gets voyage data for rendering UI components
    */
   getVoyageData() {
-    const { context: gameUIManager, now } = this.renderer;
+    const { context: gameUIManager, now, currentTick } = this.renderer;
     const voyages = gameUIManager.getAllVoyages();
     const voyageData: Array<{
       voyage: QueuedArrival;
@@ -471,8 +508,9 @@ export class VoyageRenderer implements VoyageRendererType {
             const sourcePlanet = gameUIManager.getPlanetWithId(
               voyage.fromPlanet,
             );
-            canRevert =
-              sourcePlanet && sourcePlanet.owner === gameUIManager.getAccount();
+            canRevert = Boolean(
+              sourcePlanet && sourcePlanet.owner === gameUIManager.getAccount(),
+            );
           }
 
           voyageData.push({

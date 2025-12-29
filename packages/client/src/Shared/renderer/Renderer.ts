@@ -142,7 +142,6 @@ export interface RendererGameContext extends DiagnosticUpdater {
   getAccount(): EthAddress | undefined;
   getCurrentTick(): number;
   convertTickToMs(tick: number): number;
-  getSpaceshipRangeBoost(planetId: LocationId): number;
   // tickerRangeToTime(left: number, right: number): number;
   getAllVoyages(): QueuedArrival[];
   getPlayer(address?: EthAddress): Player | undefined;

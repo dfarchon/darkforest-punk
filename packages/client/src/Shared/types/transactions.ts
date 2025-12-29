@@ -583,5 +583,4 @@ export type UnconfirmedRevertMove = TxIntent & {
   methodName: "df__revertMove";
   moveId: string;
   toPlanetHash: LocationId;
-  moveIndex: number;
 };
