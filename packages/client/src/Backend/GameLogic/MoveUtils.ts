@@ -133,6 +133,9 @@ export class MoveUtils {
         onProgress((i + 1) / planetsToLoad.length);
       }
     }
+
+    onProgress && onProgress(1);
+
     return res;
   }
 }
