@@ -12,6 +12,8 @@ Prior to the full launch of the project, periodic testing events will be held. W
 
 To run the project locally, ensure your environment is set up with Node 18 or Node 20.
 
+To support MUD v2.2.23, please use Foundry v1.0.0.
+
 # Website
 
 v0.1.1 round: https://r1.dfmud.xyz/
