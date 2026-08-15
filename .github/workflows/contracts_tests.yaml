@@ -1,70 +1,113 @@
 name: Contracts Tests
 
 on:
-  pull_request:
+  push:
     branches:
       - main
+    paths:
+      - "packages/contracts/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/contracts_tests.yaml"
+      - ".github/actions/**"
+  pull_request:
+    paths:
+      - "packages/contracts/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/contracts_tests.yaml"
+      - ".github/actions/**"
+
+concurrency:
+  group: contracts-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  HUSKY: "0"
 
 jobs:
   paths-filter:
     runs-on: ubuntu-latest
-    # Required permissions
     permissions:
+      contents: read
       pull-requests: read
     outputs:
-      client: ${{ steps.filter.outputs.client }}
       contracts: ${{ steps.filter.outputs.contracts }}
     steps:
-      - uses: dorny/paths-filter@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
             contracts:
               - 'packages/contracts/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
 
   contract-tests:
     runs-on: ubuntu-latest
-    # Wait for dependent jobs to be completed before starting next-job
     needs: paths-filter
     if: needs.paths-filter.outputs.contracts == 'true'
-
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+          persist-credentials: false
 
-      - run: git submodule update --init --recursive
+      - name: Install pnpm (packageManager pin)
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          run_install: false
+
+      - name: Install Node.js (no cache for fork PRs)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        with:
+          node-version: "24.19.0"
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
-          node-version: 20.19.0
+          node-version: "24.19.0"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          version: 10
-          run_install: false
+      - name: Validate Node and pnpm versions
+        run: |
+          set -euo pipefail
+          test "$(node --version | sed 's/^v//')" = "24.19.0"
+          test "$(pnpm --version)" = "11.20.0"
 
       - name: Get pnpm store directory
         shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
+      - name: Setup pnpm cache
+        # Do not let fork PRs write caches consumed by privileged jobs.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          key: ${{ runner.os }}-${{ runner.arch }}-node-24.19.0-pnpm-11.20.0-${{ hashFiles('pnpm-lock.yaml') }}
+          # Intentionally no restore-keys prefix: exact lockfile match only.
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Install Foundry (pinned)
+        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
         with:
           version: v1.1.0
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
 
       - name: Run contract tests
         working-directory: packages/contracts

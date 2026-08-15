@@ -9,6 +9,11 @@ verbosity = 3
 src = "src"
 test = "test"
 out = "out"
+# Foundry ≥1.5 reverts scripts that execute ADDRESS (address(this)).
+# MUD StoreSwitch compares `_storeAddress == address(this)` on every table write
+# from PostDeploy — that is a self-vs-external store check, not reliance on the
+# ephemeral script address. Required for `mud deploy` / PostDeploy on Foundry 1.7+.
+script_execution_protection = false
 allow_paths = [
   # pnpm symlinks to the project root's node_modules
   "../../node_modules",

@@ -1,5 +1,28 @@
 packages:
   - packages/*
 
-onlyBuiltDependencies:
-  - better-sqlite3
+# Force Node-24-compatible native SQLite (lockfile still has 8.7.0 transitive).
+# 8.7.0 fails node-gyp on Node 24 (V8 API). 12.11.1 ships Node 20–26 engines + prebuilds.
+# After this change, regenerate the lockfile once (reviewed): pnpm install
+overrides:
+  better-sqlite3: 12.11.1
+
+# pnpm 11+: deny dependency lifecycle scripts by default.
+# Only set true after review (native binary need + maintainer trust).
+# Do not use interactive `pnpm approve-builds --all`.
+allowBuilds:
+  # Required for Vite / client build & HMR
+  esbuild: true
+  "@parcel/watcher": true
+  # Required for Lattice explorer/indexer SQLite (version forced above)
+  better-sqlite3: true
+  # Native keccak used by ethereum stack
+  keccak: true
+  # Optional ws speedups (safe, widely used); JS fallback exists if false
+  bufferutil: true
+  utf-8-validate: true
+  # Deploy / observability only — not needed for `pnpm dev`
+  netlify-cli: false
+  sharp: false
+  "@sentry/profiling-node": false
+  unix-dgram: false

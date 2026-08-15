@@ -1,60 +1,82 @@
 name: Client
+
 on:
   push:
     branches:
-      - "main"
+      - main
     paths:
       - "packages/client/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/client.yaml"
+      - ".github/actions/**"
   pull_request:
     paths:
       - "packages/client/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/client.yaml"
+      - ".github/actions/**"
+
+concurrency:
+  group: client-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CI: true
-  # Bypass husky commit hook for CI
-  HUSKY: 0
+  HUSKY: "0"
 
 jobs:
   main:
     timeout-minutes: 15
     name: Main
     runs-on: ubuntu-latest
+    # Untrusted fork PRs: no secrets, no cache write from this job's setup.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - run: git submodule update --init --recursive
-
-      ########
-      # INSTALL PNPM + SETUP NODE
-      #   1. We need to run the pnpm/action before we run the action/setup-node,
-      #      otherwise it will fail.
-      #   2. The action/setup-node uses action/cache under the hood, setting
-      #      the cache-dependency-path ensures that we address all the pnpm lock
-      #      files in the repo.
-      #####
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          version: 10
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install pnpm (packageManager pin)
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
           run_install: false
 
+      - name: Install Node.js (no cache for fork PRs)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        with:
+          node-version: "24.19.0"
+
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
-          node-version: 20.19.0
-          cache: "pnpm"
+          node-version: "24.19.0"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Validate Node and pnpm versions
+        run: |
+          set -euo pipefail
+          test "$(node --version | sed 's/^v//')" = "24.19.0"
+          test "$(pnpm --version)" = "11.20.0"
+
+      - name: Install Foundry (pinned)
+        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
         with:
-          version: nightly
+          version: v1.1.0
 
-      - name: "Install dependencies"
-        run: pnpm --loglevel=error install
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
 
-      - name: "Build"
+      - name: Build
         run: pnpm run build
 
-      - name: "Test"
+      - name: Test
         run: pnpm --filter "client" run test

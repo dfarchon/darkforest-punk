@@ -1,0 +1,8 @@
+{
+  "lib/abdk-libraries-solidity": {
+    "rev": "5e1e7c11b35f8313d3f7ce11c1b86320d7c0b554"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  }
+}

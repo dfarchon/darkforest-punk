@@ -1,0 +1,12 @@
+# SHA-256 digests for Foundry release archives (FOUNDRY_VERSION=v1.1.0).
+# Format: <sha256>  <filename>  (two spaces, GNU sha256sum style)
+#
+# TODO# MUST BE DONE STX — Replace PLACEHOLDER_REPLACE_BEFORE_USE with real digests
+# before anyone runs `pnpm setup:foundry` locally. On a trusted machine:
+#   curl -fsSL -O https://github.com/foundry-rs/foundry/releases/download/v1.1.0/foundry_v1.1.0_linux_amd64.tar.gz
+#   sha256sum foundry_v1.1.0_*.tar.gz
+# then update the lines below. CI installs Foundry via pinned foundry-rs/foundry-toolchain instead.
+PLACEHOLDER_REPLACE_BEFORE_USE  foundry_v1.1.0_linux_amd64.tar.gz
+PLACEHOLDER_REPLACE_BEFORE_USE  foundry_v1.1.0_linux_arm64.tar.gz
+PLACEHOLDER_REPLACE_BEFORE_USE  foundry_v1.1.0_darwin_amd64.tar.gz
+PLACEHOLDER_REPLACE_BEFORE_USE  foundry_v1.1.0_darwin_arm64.tar.gz

@@ -1,0 +1,50 @@
+name: Setup DF Punk toolchain
+description: Validate pinned Node/pnpm and run a frozen dependency install
+
+inputs:
+  install-deps:
+    description: Run pnpm install --frozen-lockfile
+    required: false
+    default: "true"
+  enable-cache:
+    description: Enable setup-node pnpm cache (false for untrusted fork PRs)
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install pnpm (packageManager pin)
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      with:
+        run_install: false
+
+    - name: Install Node.js (cached)
+      if: inputs.enable-cache == 'true'
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+      with:
+        node-version: "24.19.0"
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+
+    - name: Install Node.js (no cache)
+      if: inputs.enable-cache != 'true'
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+      with:
+        node-version: "24.19.0"
+
+    - name: Validate package manager pin
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(node --version | sed 's/^v//')" = "24.19.0"
+        test "$(pnpm --version)" = "11.20.0"
+        echo "Tooling OK: node=$(node --version) pnpm=$(pnpm --version)"
+
+    - name: Install dependencies (frozen lockfile)
+      if: inputs.install-deps == 'true'
+      shell: bash
+      env:
+        HUSKY: "0"
+        CI: "true"
+      run: pnpm install --frozen-lockfile

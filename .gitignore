@@ -12,8 +12,5 @@ packages/classic-packages
 
 mprocs.log
 
-# node version manager file
-.nvmrc
-
 # Local Netlify folder
 .netlify

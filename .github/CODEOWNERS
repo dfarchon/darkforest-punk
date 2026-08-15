@@ -1,1 +1,22 @@
+# Default: security-sensitive paths require designated owners.
+# Update the GitHub team/username as ownership is formalized.
+
 * @dfarchon/df-mud-dev
+
+# Supply-chain sensitive files — treat lockfile and workflow changes as security reviews.
+/package.json @dfarchon/df-mud-dev
+/pnpm-lock.yaml @dfarchon/df-mud-dev
+/pnpm-workspace.yaml @dfarchon/df-mud-dev
+/.npmrc @dfarchon/df-mud-dev
+/.github/workflows/ @dfarchon/df-mud-dev
+/.github/actions/ @dfarchon/df-mud-dev
+/.github/CODEOWNERS @dfarchon/df-mud-dev
+/.husky/ @dfarchon/df-mud-dev
+/.gitmodules @dfarchon/df-mud-dev
+/scripts/ @dfarchon/df-mud-dev
+
+# Generated / vendored binary artifacts
+/packages/client/public/snarkjs.min.js @dfarchon/df-mud-dev
+/packages/client/public/**/*.zkey @dfarchon/df-mud-dev
+/packages/client/public/**/*.wasm @dfarchon/df-mud-dev
+/packages/client/src/Shared/snarks/ @dfarchon/df-mud-dev
