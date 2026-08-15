@@ -309,7 +309,8 @@ export const get_ABI_from_FunctionName = (functionName: string) => {
     functionName === "disbandGuild" ||
     functionName === "setGrant" ||
     functionName === "setMemberRole" ||
-    functionName === "kickMember"
+    functionName === "kickMember" ||
+    functionName === "withdraw"
   ) {
     return GUILD_SYSTEM_ABI;
   } else {
@@ -436,7 +437,8 @@ export const get_SystemId_from_FunctionName = (functionName: string) => {
     functionName === "disbandGuild" ||
     functionName === "setGrant" ||
     functionName === "setMemberRole" ||
-    functionName === "kickMember"
+    functionName === "kickMember" ||
+    functionName === "withdraw"
   ) {
     return GUILD_SYSTEM_ID;
   } else {

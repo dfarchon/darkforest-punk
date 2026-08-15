@@ -440,7 +440,7 @@ export class VoyageRenderer implements VoyageRendererType {
    * Gets voyage data for rendering UI components
    */
   getVoyageData() {
-    const { context: gameUIManager, now } = this.renderer;
+    const { context: gameUIManager, now, currentTick } = this.renderer;
     const voyages = gameUIManager.getAllVoyages();
     const voyageData: Array<{
       voyage: QueuedArrival;
@@ -486,8 +486,9 @@ export class VoyageRenderer implements VoyageRendererType {
             const sourcePlanet = gameUIManager.getPlanetWithId(
               voyage.fromPlanet,
             );
-            canRevert =
-              sourcePlanet && sourcePlanet.owner === gameUIManager.getAccount();
+            canRevert = Boolean(
+              sourcePlanet && sourcePlanet.owner === gameUIManager.getAccount(),
+            );
           }
 
           voyageData.push({

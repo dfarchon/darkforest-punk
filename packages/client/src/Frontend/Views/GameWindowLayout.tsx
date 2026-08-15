@@ -367,10 +367,10 @@ export function GameWindowLayout({
           onClose={() => setTwitterVerifyVisible(false)}
         />
 
-        <AIChatPane
+        {/* <AIChatPane
           visible={aiChatVisible}
           onClose={() => setAIChatVisible(false)}
-        />
+        /> */}
 
         <WalletPane
           visible={walletVisible}

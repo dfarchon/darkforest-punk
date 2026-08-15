@@ -10,6 +10,7 @@ import {
 } from "react";
 import styled from "styled-components";
 
+import type { RendererGameContext } from "../../Shared/renderer/Renderer";
 import { useUIManager } from "../Utils/AppHooks";
 import { useIsDown } from "../Utils/KeyEmitters";
 import {
@@ -51,12 +52,14 @@ const CanvasWrapper = styled.div`
 
 export default function ControllableCanvas() {
   // html canvas element width and height. viewport dimensions are tracked by viewport obj
-  const [width, setWidth] = useState(window.innerWidth);
-  const [height, setHeight] = useState(window.innerHeight);
+  const [width, setWidth] = useState(0);
+  const [height, setHeight] = useState(0);
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const glRef = useRef<HTMLCanvasElement | null>(null);
   const bufferRef = useRef<HTMLCanvasElement | null>(null);
+  const initializedRef = useRef(false);
 
   const evtRef = canvasRef;
 
@@ -81,29 +84,62 @@ export default function ControllableCanvas() {
   }, [modalManager]);
 
   const doResize = useCallback(() => {
-    const uiEmitter: UIEmitter = UIEmitter.getInstance();
-    if (canvasRef.current) {
-      setWidth(canvasRef.current.clientWidth);
-      setHeight(canvasRef.current.clientHeight);
-      uiEmitter.emit(UIEmitterEvent.WindowResize);
-    }
-  }, [canvasRef]);
+    if (wrapperRef.current) {
+      const nextWidth = wrapperRef.current.clientWidth;
+      const nextHeight = wrapperRef.current.clientHeight;
 
-  // TODO fix this
-  useLayoutEffect(() => {
-    if (canvasRef.current) {
-      doResize();
+      if (nextWidth <= 0 || nextHeight <= 0) {
+        return;
+      }
+
+      setWidth((currentWidth) =>
+        currentWidth === nextWidth ? currentWidth : nextWidth,
+      );
+      setHeight((currentHeight) =>
+        currentHeight === nextHeight ? currentHeight : nextHeight,
+      );
     }
-  }, [
-    // dep array gives eslint issues, but it's fine i tested it i swear - Alan
-    canvasRef,
-    doResize,
-    canvasRef.current?.offsetWidth,
-    canvasRef.current?.offsetHeight,
-  ]);
+  }, []);
+
+  useLayoutEffect(() => {
+    doResize();
+  }, [doResize]);
 
   useEffect(() => {
-    if (!gameUIManager) {
+    if (!wrapperRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      doResize();
+    });
+
+    resizeObserver.observe(wrapperRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [doResize]);
+
+  useEffect(() => {
+    if (!initializedRef.current || width <= 0 || height <= 0) {
+      return;
+    }
+
+    const uiEmitter: UIEmitter = UIEmitter.getInstance();
+    const frameId = window.requestAnimationFrame(() => {
+      uiEmitter.emit(UIEmitterEvent.WindowResize);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [width, height]);
+
+  const canInitialize = Boolean(gameUIManager) && width > 0 && height > 0;
+
+  useEffect(() => {
+    if (!canInitialize || !gameUIManager) {
       return;
     }
     // if (!fCanvas && canvasRef.current) {
@@ -111,11 +147,6 @@ export default function ControllableCanvas() {
     // }
 
     const uiEmitter: UIEmitter = UIEmitter.getInstance();
-
-    function onResize() {
-      doResize();
-      uiEmitter.emit(UIEmitterEvent.WindowResize);
-    }
 
     const onWheel = (e: WheelEvent): void => {
       e.preventDefault();
@@ -138,7 +169,7 @@ export default function ControllableCanvas() {
       glRef.current,
       bufferRef.current,
       Viewport.getInstance(),
-      gameUIManager,
+      gameUIManager as unknown as RendererGameContext,
       {
         spaceColors: {
           innerNebulaColor: gameUIManager.getStringSetting(
@@ -159,22 +190,38 @@ export default function ControllableCanvas() {
         },
       },
     );
+    initializedRef.current = true;
+
     // We can't attach the wheel event onto the canvas due to:
     // https://www.chromestatus.com/features/6662647093133312
     canvas.addEventListener("wheel", onWheel);
     // fCanvas.on("mouse:wheel", onWheel);
-    window.addEventListener("resize", onResize);
+    window.addEventListener("resize", doResize);
 
     uiEmitter.on(UIEmitterEvent.UIChange, doResize);
 
+    const initialResizeFrameId = window.requestAnimationFrame(() => {
+      uiEmitter.emit(UIEmitterEvent.WindowResize);
+    });
+
     return () => {
+      initializedRef.current = false;
+      window.cancelAnimationFrame(initialResizeFrameId);
       Viewport.destroyInstance();
       Renderer.destroy();
       canvas.removeEventListener("wheel", onWheel);
-      window.removeEventListener("resize", onResize);
+      window.removeEventListener("resize", doResize);
       uiEmitter.removeListener(UIEmitterEvent.UIChange, doResize);
     };
-  }, [gameUIManager, doResize, canvasRef, glRef, bufferRef, evtRef]);
+  }, [
+    canInitialize,
+    gameUIManager,
+    doResize,
+    canvasRef,
+    glRef,
+    bufferRef,
+    evtRef,
+  ]);
 
   // attach event listeners
   useEffect(() => {
@@ -267,7 +314,10 @@ export default function ControllableCanvas() {
   }, [isUpPressed, isDownPressed, isLeftPressed, isRightPressed]);
 
   return (
-    <CanvasWrapper style={{ cursor: targeting ? "crosshair" : undefined }}>
+    <CanvasWrapper
+      ref={wrapperRef}
+      style={{ cursor: targeting ? "crosshair" : undefined }}
+    >
       <canvas ref={glRef} width={width} height={height} />
       <canvas ref={canvasRef} width={width} height={height} />
       <canvas ref={bufferRef} id="buffer" />

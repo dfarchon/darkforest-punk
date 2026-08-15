@@ -860,6 +860,14 @@ export class GameUIManager extends EventEmitter {
     );
   }
 
+  public getTimeForMove(
+    fromId: LocationId,
+    toId: LocationId,
+    abandoning = false,
+  ): number {
+    return this.gameManager.getTimeForMove(fromId, toId, abandoning);
+  }
+
   public getEnergyNeededForMove(
     fromId: LocationId,
     toId: LocationId,

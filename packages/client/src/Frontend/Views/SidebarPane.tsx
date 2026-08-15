@@ -52,7 +52,7 @@ export function SidebarPane({
       <BorderlessPane
         style={{ zIndex: sidebarHovered ? DFZIndex.Tooltip : undefined }}
       >
-        <ModalToggleButton
+        {/* <ModalToggleButton
           modal={ModalName.AIChat}
           hook={aiChatHook}
           text={sidebarHovered ? "Sophons" : undefined}
@@ -60,11 +60,11 @@ export function SidebarPane({
           shortcutKey={TOGGLE_AI_CHAT_PANE}
           shortcutText={sidebarHovered ? TOGGLE_AI_CHAT_PANE : undefined}
         />
-        <EmSpacer height={0.5} />
+        <EmSpacer height={0.5} /> */}
         <ModalToggleButton
           modal={ModalName.Wallet}
           hook={walletHook}
-          text={sidebarHovered ? "Wallet" : undefined}
+          text={sidebarHovered ? "Wallet & Trade" : undefined}
           size="stretch"
           shortcutKey={TOGGLE_WALLET_PANE}
           shortcutText={sidebarHovered ? TOGGLE_WALLET_PANE : undefined}

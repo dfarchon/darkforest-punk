@@ -61,6 +61,15 @@ function main_ui() {
     show_planets = planets;
   }
 
+  function get_type_three_planets() {
+    let planets = Array.from(df.getAllOwnedPlanets()).filter((planet) => {
+      if (planet.owner === my_account && planet.junkOwner !== my_account)
+        return true;
+      else return false;
+    });
+    show_planets = planets;
+  }
+
   function clearPlanets() {
     show_planets = [];
   }
@@ -87,6 +96,17 @@ function main_ui() {
     </button>
   </div> `;
 
+  let type_three_planets_button = html`<div>
+    <button
+      style=${{ marginLeft: "8px", width: "200px", height: "100px" }}
+      onClick=${get_type_three_planets}
+    >
+      show Planets that <br />
+      planet.owner === me <br />
+      planet.junkOwner !== me
+    </button>
+  </div> `;
+
   let clearPlanetsButton = html`<div>
     <button
       style=${{ marginLeft: "8px", width: "200px", height: "50px" }}
@@ -108,7 +128,9 @@ function main_ui() {
     <div style=${{ ...flexRow }}>
       ${type_one_planets_button} ${type_two_planets_button}
     </div>
-    <div style=${{ ...flexRow }}>${clearPlanetsButton}</div>
+    <div style=${{ ...flexRow }}>
+      ${type_three_planets_button} ${clearPlanetsButton}
+    </div>
   </div>`;
 }
 
@@ -123,7 +145,7 @@ class Plugin {
   async render(container) {
     this.container = container;
     container.style.width = "450px";
-    container.style.height = "200px";
+    container.style.height = "280px";
     render(html`<${main_ui} />`, container);
   }
   destroy() {

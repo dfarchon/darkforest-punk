@@ -1668,13 +1668,15 @@ export class ContractsAPI extends EventEmitter {
     for (let i = 0; i < nPlayers; i++) {
       const playerId = hexToEthAddress(playerIds[i].toString() as Hex);
       const player = this.getPlayerById(playerId);
-      if (!player) {
-        continue;
+      if (player) {
+        // Advance progress for every scanned player ID, even if the record is missing.
+        playerMap.set(player.address, player);
       }
-      // playerMap.set(player.address, player);
-      playerMap.set(player.address, player);
       onProgress && onProgress((i + 1) / nPlayers);
     }
+
+    onProgress && onProgress(1);
+
     return playerMap;
   }
 
@@ -1757,6 +1759,9 @@ export class ContractsAPI extends EventEmitter {
       }
       onProgress && onProgress((i + 1) / nPlanets);
     }
+
+    onProgress && onProgress(1);
+
     return result;
   }
 
@@ -1914,6 +1919,9 @@ export class ContractsAPI extends EventEmitter {
       }
       onProgressPlanet && onProgressPlanet((i + 1) / nPlanetIds);
     }
+
+    onProgressPlanet && onProgressPlanet(1);
+
     return planets;
   }
 
@@ -1964,6 +1972,9 @@ export class ContractsAPI extends EventEmitter {
       result.push(artifactId);
       onProgress && onProgress((i + 1) / nArtifactIds);
     }
+
+    onProgress && onProgress(1);
+
     return result;
   }
 
@@ -1983,6 +1994,9 @@ export class ContractsAPI extends EventEmitter {
       }
       onProgress && onProgress((i + 1) / nArtifactIds);
     }
+
+    onProgress && onProgress(1);
+
     return artifacts;
   }
 
