@@ -231,7 +231,10 @@ contract MoveSystem is BaseSystem {
     uint256 currentTick,
     uint256 elapsedTime
   ) internal {
-    // Create new move directly
+    // Backdate departure so the fleet stays at its current path position and only
+    // reverses direction. At currentTick, proportion becomes (1 - oldProportion):
+    //   departureTick = 2 * currentTick - oldArrivalTick
+    //   arrivalTick   = currentTick + elapsedTime  (same remaining travel time)
     Move.set(
       moveData.from,
       moveIndex,
@@ -239,7 +242,7 @@ contract MoveSystem is BaseSystem {
         from: toPlanetHash,
         id: moveData.id,
         captain: moveData.captain,
-        departureTick: uint64(currentTick),
+        departureTick: uint64(2 * currentTick - moveData.arrivalTick),
         arrivalTick: uint64(currentTick + elapsedTime),
         population: uint64(moveData.population / 2),
         silver: uint64(moveData.silver / 2),
